@@ -1,7 +1,9 @@
 // src/pages/IpPoolPage.jsx
+// src/pages/IpPoolPage.jsx
 import React, { useState } from 'react';
 import { Title, Text, Button, Card, Table, Group, TextInput, Stack } from '@mantine/core';
 import { Link } from 'react-router-dom';
+import { useIpPoolStore } from '../stores/ipPoolStore'; // 1. Import store
 
 // Dữ liệu giả ban đầu
 const initialIps = [
@@ -11,32 +13,16 @@ const initialIps = [
 ];
 
 function IpPoolPage() {
-    // State để lưu danh sách các mục tiêu
-    const [ips, setIps] = useState(initialIps);
-    // State để lưu giá trị của ô nhập liệu
+    // 2. Lấy state và actions từ store
+    const { ips, addIp, deleteIp } = useIpPoolStore();
+
     const [newIp, setNewIp] = useState('');
 
-    // Hàm xử lý việc thêm mục tiêu mới
     const handleAddIp = () => {
-        // Chỉ thêm nếu ô nhập liệu không rỗng
-        if (newIp.trim() !== '') {
-            const newItem = {
-                id: Date.now(), // Dùng timestamp để tạo ID duy nhất
-                target: newIp.trim(),
-            };
-            setIps([...ips, newItem]); // Thêm mục tiêu mới vào danh sách
-            setNewIp(''); // Xóa trắng ô nhập liệu
-        }
+        addIp(newIp); // Dùng action từ store
+        setNewIp('');
     };
 
-    // Hàm xử lý việc xóa một mục tiêu
-    const handleDeleteIp = (idToDelete) => {
-        // Lọc ra các mục tiêu không có ID trùng với ID cần xóa
-        const updatedIps = ips.filter(ip => ip.id !== idToDelete);
-        setIps(updatedIps);
-    };
-
-    // Tạo các hàng cho bảng từ danh sách IPs
     const rows = ips.map((ip) => (
         <Table.Tr key={ip.id}>
             <Table.Td>{ip.target}</Table.Td>
@@ -46,7 +32,7 @@ function IpPoolPage() {
                         color="red"
                         variant="light"
                         size="compact-sm"
-                        onClick={() => handleDeleteIp(ip.id)}
+                        onClick={() => deleteIp(ip.id)} // Dùng action từ store
                     >
                         Xóa
                     </Button>
@@ -74,7 +60,6 @@ function IpPoolPage() {
                         value={newIp}
                         onChange={(event) => setNewIp(event.currentTarget.value)}
                         style={{ flex: 1 }}
-                        // Cho phép nhấn Enter để thêm
                         onKeyDown={(event) => {
                             if (event.key === 'Enter') {
                                 handleAddIp();
@@ -84,8 +69,6 @@ function IpPoolPage() {
                     <Button onClick={handleAddIp}>Thêm</Button>
                 </Group>
             </Card>
-
-            {/* Bảng hiển thị danh sách mục tiêu */}
             <Card withBorder p={0} radius="md">
                 <Table verticalSpacing="sm">
                     <Table.Thead>
