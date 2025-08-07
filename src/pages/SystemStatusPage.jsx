@@ -7,13 +7,26 @@ function SystemStatusPage() {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(false);
 
+    // Cập nhật hàm fetchData
     const fetchData = async (endpoint) => {
         setLoading(true);
         setData(null);
         try {
             const response = await fetch(endpoint);
-            const result = await response.json();
-            setData(JSON.stringify(result, null, 2)); // Format JSON cho đẹp
+
+            // Lấy header để kiểm tra kiểu nội dung
+            const contentType = response.headers.get("content-type");
+
+            // Nếu response là JSON, phân tích nó
+            if (contentType && contentType.indexOf("application/json") !== -1) {
+                const result = await response.json();
+                setData(JSON.stringify(result, null, 2)); // Format JSON cho đẹp
+            } else {
+                // Nếu không, đọc nó như văn bản thuần túy
+                const result = await response.text();
+                setData(result);
+            }
+
         } catch (error) {
             setData(`Lỗi khi gọi API: ${error.message}`);
         } finally {

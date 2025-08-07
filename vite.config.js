@@ -24,6 +24,10 @@ export default defineConfig({
       '/health': {
         target: 'http://10.102.199.42:8000',
         changeOrigin: true,
+      },
+      '/debug': {
+        target: 'http://10.102.199.42:8000',
+        changeOrigin: true,
       }
     }
   }
