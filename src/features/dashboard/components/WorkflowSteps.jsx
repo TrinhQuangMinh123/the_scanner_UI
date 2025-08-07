@@ -3,7 +3,7 @@ import React from 'react';
 import { Text, Stack } from '@mantine/core';
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
-import SortableScanStep from './SortableScanStep'; // <-- Thay đổi ở đây
+import SortableScanStep from './SortableScanStep';
 
 function WorkflowSteps({ steps, setSteps, onRemove, onParamsChange }) {
     const sensors = useSensors(useSensor(PointerSensor, {
