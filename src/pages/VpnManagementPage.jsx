@@ -1,44 +1,105 @@
 // src/pages/VpnManagementPage.jsx
-import React, { useState, useEffect } from 'react';
-// Thêm 'Group' vào dòng import dưới đây
-import { Title, Text, Button, Stack, Table, Card, Loader, Alert, Group } from '@mantine/core';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Title, Button, Stack, Table, Card, Loader, Alert, Group, Accordion, Badge } from '@mantine/core';
 import { Link } from 'react-router-dom';
-import { IconAlertCircle } from '@tabler/icons-react';
+import { IconAlertCircle, IconRefresh } from '@tabler/icons-react';
+
+// Component con để hiển thị Badge trạng thái
+const StatusBadge = ({ status }) => {
+    const color = status === 'online' ? 'green' : status === 'offline' ? 'red' : 'gray';
+    const label = status || 'unknown'; // Hiển thị 'unknown' nếu status là null/undefined
+
+    return (
+        <Badge
+            color={color}
+            leftSection={
+                <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: `var(--mantine-color-${color}-6)` }} />
+            }
+        >
+            {label}
+        </Badge>
+    );
+};
 
 function VpnManagementPage() {
-    const [vpns, setVpns] = useState([]);
+    const [groupedVpns, setGroupedVpns] = useState({});
     const [loading, setLoading] = useState(true);
+    const [isTesting, setIsTesting] = useState(false);
     const [error, setError] = useState(null);
 
-    useEffect(() => {
-        const fetchVpns = async () => {
-            try {
-                setLoading(true);
-                setError(null);
-                const response = await fetch('/api/vpns');
-                if (!response.ok) {
-                    throw new Error(`Lỗi HTTP: ${response.status}`);
-                }
-                const data = await response.json();
-                setVpns(data.vpns);
-            } catch (e) {
-                setError(e.message);
-            } finally {
-                setLoading(false);
+    // Dùng useCallback để hàm fetchVpns không bị tạo lại mỗi lần render
+    const fetchVpns = useCallback(async () => {
+        try {
+            setLoading(true);
+            setError(null);
+            const response = await fetch('/api/vpns/by-country');
+            if (!response.ok) {
+                throw new Error(`Lỗi HTTP: ${response.status}`);
             }
-        };
-
-        fetchVpns();
+            const data = await response.json();
+            // Chỉ lấy đối tượng 'countries' từ data, nếu không có thì lấy object rỗng
+            setGroupedVpns(data.countries || {});         } catch (e) {
+            setError(e.message);
+        } finally {
+            setLoading(false);
+        }
     }, []);
 
-    const rows = vpns.map((vpn) => (
-        <Table.Tr key={vpn.id || vpn.filename}>
-            <Table.Td>{vpn.hostname}</Table.Td>
-            <Table.Td>{vpn.country}</Table.Td>
-            <Table.Td>{vpn.ip_address}</Table.Td>
-            <Table.Td>{vpn.status}</Table.Td>
-        </Table.Tr>
-    ));
+    // Gọi API lần đầu khi component được tải
+    useEffect(() => {
+        void fetchVpns();
+    }, [fetchVpns]);
+
+    // Hàm xử lý khi nhấn nút kiểm tra
+    const handleTestVpns = async () => {
+        setIsTesting(true);
+        setError(null);
+        try {
+            const response = await fetch('/api/vpns/test');
+            if (!response.ok) {
+                throw new Error(`Lỗi HTTP: ${response.status}`);
+            }
+            // Sau khi test xong, gọi lại API để cập nhật danh sách
+            await fetchVpns();
+        } catch (e) {
+            setError(e.message);
+        } finally {
+            setIsTesting(false);
+        }
+    };
+
+    const accordionItems = Object.keys(groupedVpns).map((country) => {
+        const vpnsInCountry = groupedVpns[country];
+        const rows = vpnsInCountry.map((vpn) => (
+            <Table.Tr key={vpn.filename}>
+                <Table.Td>{vpn.hostname}</Table.Td>
+                <Table.Td>{vpn.filename}</Table.Td>
+                <Table.Td>
+                    <StatusBadge status={vpn.status} />
+                </Table.Td>
+            </Table.Tr>
+        ));
+
+        return (
+            <Accordion.Item key={country} value={country}>
+                <Accordion.Control>
+                    {country.toUpperCase()} ({vpnsInCountry.length} VPNs)
+                </Accordion.Control>
+                <Accordion.Panel>
+                    <Table verticalSpacing="sm" striped highlightOnHover>
+                        <Table.Thead>
+                            <Table.Tr>
+                                <Table.Th>Hostname / IP</Table.Th>
+                                <Table.Th>Tên file</Table.Th>
+                                <Table.Th>Trạng thái</Table.Th>
+                            </Table.Tr>
+                        </Table.Thead>
+                        <Table.Tbody>{rows}</Table.Tbody>
+                    </Table>
+                </Accordion.Panel>
+            </Accordion.Item>
+        );
+    });
 
     return (
         <Stack>
@@ -49,6 +110,18 @@ function VpnManagementPage() {
                 </Button>
             </Group>
 
+            <Card withBorder p="md" radius="md">
+                <Group>
+                    <Button
+                        leftSection={<IconRefresh size={14} />}
+                        onClick={handleTestVpns}
+                        loading={isTesting}
+                    >
+                        Kiểm tra hệ thống VPN
+                    </Button>
+                </Group>
+            </Card>
+
             {loading && <Loader />}
 
             {error && (
@@ -58,19 +131,9 @@ function VpnManagementPage() {
             )}
 
             {!loading && !error && (
-                <Card withBorder p={0} radius="md">
-                    <Table verticalSpacing="sm" striped highlightOnHover>
-                        <Table.Thead>
-                            <Table.Tr>
-                                <Table.Th>Hostname/IP</Table.Th>
-                                <Table.Th>Quốc gia</Table.Th>
-                                <Table.Th>Địa chỉ IP</Table.Th>
-                                <Table.Th>Trạng thái</Table.Th>
-                            </Table.Tr>
-                        </Table.Thead>
-                        <Table.Tbody>{rows}</Table.Tbody>
-                    </Table>
-                </Card>
+                <Accordion variant="separated" radius="md">
+                    {accordionItems}
+                </Accordion>
             )}
         </Stack>
     );

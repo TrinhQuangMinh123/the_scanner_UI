@@ -4,21 +4,22 @@ import { Accordion, TextInput, Switch, Select, MultiSelect, Group, ActionIcon, T
 import { IconGripVertical, IconTrash } from '@tabler/icons-react';
 import { scanTemplates } from '../../../scanTemplates';
 
-// Hàm render form field đã được điều chỉnh một chút
+// Hàm để render một trường form động
 const renderFormField = (field, params, handleParamChange) => {
-    const commonProps = {
-        key: field.name,
+    // Tách 'key' ra khỏi các props khác
+    const key = field.name;
+    const otherProps = {
         label: field.label,
         placeholder: field.placeholder,
     };
 
     switch (field.component) {
         case 'TextInput':
-            // Thêm logic disable cho Nmap
             const isDisabled = field.name === 'ports' && params.allPorts === true;
             return (
                 <TextInput
-                    {...commonProps}
+                    key={key} // Truyền key trực tiếp
+                    {...otherProps} // Trải các props còn lại
                     value={params[field.name] || ''}
                     onChange={(event) => handleParamChange(field.name, event.currentTarget.value)}
                     disabled={isDisabled}
@@ -27,12 +28,12 @@ const renderFormField = (field, params, handleParamChange) => {
         case 'Switch':
             return (
                 <Switch
-                    {...commonProps}
+                    key={key} // Truyền key trực tiếp
+                    {...otherProps} // Trải các props còn lại
                     mt="md"
                     checked={params[field.name] === undefined ? field.defaultValue : params[field.name]}
                     onChange={(event) => {
                         handleParamChange(field.name, event.currentTarget.checked);
-                        // Nếu bật 'allPorts', xóa giá trị trong ô 'ports'
                         if (field.name === 'allPorts' && event.currentTarget.checked) {
                             handleParamChange('ports', '');
                         }
@@ -42,13 +43,24 @@ const renderFormField = (field, params, handleParamChange) => {
         case 'Select':
             return (
                 <Select
-                    {...commonProps}
+                    key={key} // Truyền key trực tiếp
+                    {...otherProps} // Trải các props còn lại
                     data={field.data}
                     value={params[field.name] || field.defaultValue}
                     onChange={(value) => handleParamChange(field.name, value)}
                 />
             );
-        // ... MultiSelect và các case khác giữ nguyên
+        case 'MultiSelect':
+            return (
+                <MultiSelect
+                    key={key} // Truyền key trực tiếp
+                    {...otherProps} // Trải các props còn lại
+                    data={field.data}
+                    value={params[field.name] || []}
+                    onChange={(value) => handleParamChange(field.name, value)}
+                    clearable
+                />
+            );
         default:
             return null;
     }
