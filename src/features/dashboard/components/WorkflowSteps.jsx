@@ -35,12 +35,12 @@ function WorkflowSteps({ steps, setSteps, onRemove, onParamsChange }) {
                 <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                     <SortableContext items={steps} strategy={verticalListSortingStrategy}>
                         {steps.map(step => (
-                            // <-- Sử dụng SortableScanStep ở đây
                             <SortableScanStep
                                 key={step.id}
                                 step={step}
                                 onRemove={onRemove}
                                 onParamsChange={onParamsChange}
+                                scanTemplates={scanTemplates} // Truyền `scanTemplates` xuống dưới
                             />
                         ))}
                     </SortableContext>

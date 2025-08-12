@@ -4,7 +4,7 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import ScanStep from './ScanStep';
 
-function SortableScanStep({ step, ...props }) {
+function SortableScanStep({ step, scanTemplates, ...props }) {
     const {
         attributes,
         listeners,
@@ -25,6 +25,8 @@ function SortableScanStep({ step, ...props }) {
             listeners={listeners}
             {...attributes}
             step={step}
+            // 2. Truyền `scanTemplates` xuống cho ScanStep
+            scanTemplates={scanTemplates}
             {...props}
         />
     );

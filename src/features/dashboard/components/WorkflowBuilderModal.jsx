@@ -1,53 +1,68 @@
 // src/features/dashboard/components/WorkflowBuilderModal.jsx
 import React, { useState, useEffect } from 'react';
-// Thêm Loader vào import
+import { useNavigate } from 'react-router-dom';
 import { Modal, Stack, Textarea, SegmentedControl, Button, Grid, Text, Select, Alert, Loader } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { IconAlertCircle, IconCheck } from '@tabler/icons-react';
 import { useIpPoolStore } from '../../../stores/ipPoolStore';
 import AvailableScans from './AvailableScans';
 import WorkflowSteps from './WorkflowSteps';
-import { scanTemplates } from '../../../scanTemplates';
 
 function WorkflowBuilderModal({ opened, onClose }) {
+    const navigate = useNavigate(); // KHỞI TẠO hook
     const poolIps = useIpPoolStore((state) => state.ips);
 
-    // --- Các State ---
+    // --- State gốc của bạn được giữ nguyên ---
     const [targets, setTargets] = useState('');
     const [workflow, setWorkflow] = useState([]);
     const [strategy, setStrategy] = useState('deep');
     const [countries, setCountries] = useState([]);
     const [selectedCountry, setSelectedCountry] = useState(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [countriesError, setCountriesError] = useState(null);
+    const [error, setError] = useState(null); // Đổi tên state lỗi chung
+    const [isLoading, setIsLoading] = useState(false); // State tải dữ liệu ban đầu
 
-    // 1. State mới để quản lý việc tải danh sách quốc gia
-    const [isCountriesLoading, setIsCountriesLoading] = useState(false);
+    // 3. THÊM MỚI: State để lưu cấu hình scan từ API
+    const [scanTemplates, setScanTemplates] = useState([]);
 
     useEffect(() => {
         if (opened) {
-            const fetchCountries = async () => {
-                setIsCountriesLoading(true); // Bắt đầu tải
-                setCountriesError(null);
+            // Giữ nguyên cấu trúc `useEffect` và `void fetch` của bạn
+            const fetchInitialData = async () => {
+                setIsLoading(true);
+                setError(null);
                 try {
-                    const response = await fetch('/api/vpns/countries');
-                    if (!response.ok) throw new Error('Không thể kết nối tới server.');
+                    // Gọi song song 2 API để tối ưu tốc độ
+                    const [toolsRes, countriesRes] = await Promise.all([
+                        fetch('/api/tools'),
+                        fetch('/api/vpns/countries')
+                    ]);
 
-                    const data = await response.json();
-                    const countryList = data.countries || [];
+                    if (!toolsRes.ok) throw new Error('Không thể tải cấu hình các loại scan.');
+                    if (!countriesRes.ok) throw new Error('Không thể tải danh sách quốc gia.');
+
+                    const toolsData = await toolsRes.json();
+                    const countriesData = await countriesRes.json();
+
+                    // 4. LƯU CẤU HÌNH SCAN ĐỘNG
+                    setScanTemplates(toolsData || []);
+
+                    // Xử lý response countries như file của bạn
+                    const countryList = countriesData.countries || [];
                     const formattedCountries = countryList.map(country => ({
                         value: country.code,
                         label: country.code
                     }));
                     setCountries(formattedCountries);
-                } catch (error) {
-                    setCountriesError(error.message);
-                    console.error("Failed to fetch countries:", error);
+
+                } catch (e) {
+                    setError(e.message);
+                    console.error("Failed to fetch initial data:", e);
                 } finally {
-                    setIsCountriesLoading(false); // Kết thúc tải
+                    setIsLoading(false);
                 }
             };
-            void fetchCountries();
+            void fetchInitialData();
         }
     }, [opened]);
 
@@ -90,6 +105,8 @@ function WorkflowBuilderModal({ opened, onClose }) {
                 throw new Error(errorData.message || `Lỗi HTTP: ${response.status}`);
             }
 
+            const masterJob = await response.json(); // Nhận về job tổng
+
             // 4. Hiển thị thông báo thành công
             notifications.show({
                 title: 'Thành công!',
@@ -99,6 +116,9 @@ function WorkflowBuilderModal({ opened, onClose }) {
             });
 
             onClose(); // Đóng modal
+
+            // CHUYỂN HƯỚNG người dùng đến trang chi tiết job
+            navigate(`/jobs/${masterJob.master_job_id}`);
 
         } catch (error) {
             // 5. Hiển thị thông báo thất bại
@@ -148,62 +168,59 @@ function WorkflowBuilderModal({ opened, onClose }) {
 
     return (
         <Modal opened={opened} onClose={onClose} title="Xây dựng Luồng quét" size="xl">
-            <Stack gap="xl">
-                <div>
-                    {/* Thay TextInput bằng Textarea */}
-                    <Textarea
-                        label="Mục tiêu"
-                        description="Nhập nhiều mục tiêu, mỗi mục tiêu trên một dòng."
-                        placeholder="example.com&#10;1.1.1.1&#10;192.168.1.0/24"
-                        required
-                        autosize
-                        minRows={3}
-                        value={targets}
-                        onChange={(e) => setTargets(e.currentTarget.value)}
-                    />
-                    {/* Nút mới để liên kết với IP Pool */}
-                    <Button
-                        variant="light"
-                        size="xs"
-                        mt="xs"
-                        onClick={handleImportFromPool}
-                    >
-                        Sử dụng danh sách từ IP Pool
-                    </Button>
-                </div>
-
-                {countriesError ? (
-                    <Alert color="orange" icon={<IconAlertCircle size={16} />}>
-                        Không thể tải danh sách quốc gia: {countriesError}
-                    </Alert>
-                ) : (
-                    // 2. Cập nhật component Select
+            {isLoading && <Loader style={{ position: 'absolute', top: '50%', left: '50%' }} />}
+            {error && (
+                <Alert color="orange" icon={<IconAlertCircle size={16} />}>
+                    Không thể tải dữ liệu cần thiết: {error}
+                </Alert>
+            )}
+            {!isLoading && !error && (
+                <Stack gap="xl">
+                    <div>
+                        {/* Thay TextInput bằng Textarea */}
+                        <Textarea
+                            label="Mục tiêu"
+                            description="Nhập nhiều mục tiêu, mỗi mục tiêu trên một dòng."
+                            placeholder="example.com&#10;1.1.1.1&#10;192.168.1.0/24"
+                            required
+                            autosize
+                            minRows={3}
+                            value={targets}
+                            onChange={(e) => setTargets(e.currentTarget.value)}
+                        />
+                        {/* Nút mới để liên kết với IP Pool */}
+                        <Button
+                            variant="light"
+                            size="xs"
+                            mt="xs"
+                            onClick={handleImportFromPool}
+                        >
+                            Sử dụng danh sách từ IP Pool
+                        </Button>
+                    </div>
                     <Select
                         label="Chọn Quốc gia VPN (Tùy chọn)"
-                        placeholder={isCountriesLoading ? "Đang tải danh sách..." : "Mặc định (tự động chọn)"}
+                        placeholder="Mặc định (tự động chọn)"
                         data={countries}
                         value={selectedCountry}
                         onChange={setSelectedCountry}
                         clearable
-                        disabled={isCountriesLoading} // Vô hiệu hóa khi đang tải
-                        rightSection={isCountriesLoading ? <Loader size="xs" /> : null} // Hiển thị loader
                     />
-                )}
-
-                <Grid>
-                    <Grid.Col span={{ base: 12, md: 5 }}>
-                        <AvailableScans onAddScan={addScanToWorkflow} />
-                    </Grid.Col>
-
-                    <Grid.Col span={{ base: 12, md: 7 }}>
-                        <WorkflowSteps
-                            steps={workflow}
-                            setSteps={setWorkflow}
-                            onRemove={removeStep}
-                            onParamsChange={handleParamsChange}
-                        />
-                    </Grid.Col>
-                </Grid>
+                    <Grid>
+                        <Grid.Col span={{ base: 12, md: 5 }}>
+                            {/* 6. Truyền `scanTemplates` từ state vào component con */}
+                            <AvailableScans onAddScan={addScanToWorkflow} scanTemplates={scanTemplates} />
+                        </Grid.Col>
+                        <Grid.Col span={{ base: 12, md: 7 }}>
+                            <WorkflowSteps
+                                steps={workflow}
+                                setSteps={setWorkflow}
+                                onRemove={removeStep}
+                                onParamsChange={handleParamsChange}
+                                scanTemplates={scanTemplates} // Truyền cả vào đây để `ScanStep` có thể dùng
+                            />
+                        </Grid.Col>
+                    </Grid>
 
                 <div>
                     <Text fw={500} size="sm">Chiến lược quét</Text>
@@ -218,8 +235,11 @@ function WorkflowBuilderModal({ opened, onClose }) {
                     />
                 </div>
 
-                <Button onClick={handleSubmit} size="md">Bắt đầu Luồng quét</Button>
-            </Stack>
+                    <Button onClick={handleSubmit} loading={isSubmitting} size="md">
+                        Bắt đầu Luồng quét
+                    </Button>
+                </Stack>
+            )}
         </Modal>
     );
 }

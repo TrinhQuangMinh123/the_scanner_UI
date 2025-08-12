@@ -6,6 +6,8 @@ import Dashboard from './features/dashboard/Dashboard';
 import IpPoolPage from './pages/IpPoolPage';
 import VpnManagementPage from './pages/VpnManagementPage';
 import SystemStatusPage from './pages/SystemStatusPage';
+import JobDetailPage from './pages/JobDetailPage'; // Thêm dòng import
+
 
 
 function App() {
@@ -16,9 +18,12 @@ function App() {
                 <Route path="/pool" element={<IpPoolPage />} />
                 <Route path="/vpns" element={<VpnManagementPage />} />
                 <Route path="/status" element={<SystemStatusPage />} />
+                <Route path="/jobs/:jobId" element={<JobDetailPage />} />
             </Routes>
         </Container>
     );
 }
 
 export default App;
+
+

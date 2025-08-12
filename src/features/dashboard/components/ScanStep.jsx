@@ -2,7 +2,6 @@
 import React from 'react';
 import { Accordion, TextInput, Switch, Select, MultiSelect, Group, ActionIcon, Text, Box } from '@mantine/core';
 import { IconGripVertical, IconTrash } from '@tabler/icons-react';
-import { scanTemplates } from '../../../scanTemplates';
 
 // Hàm để render một trường form động
 const renderFormField = (field, params, handleParamChange) => {
@@ -66,8 +65,18 @@ const renderFormField = (field, params, handleParamChange) => {
     }
 };
 
-function ScanStep({ step, onRemove, onParamsChange, listeners, ref, style }) {
+function ScanStep({ step, onRemove, onParamsChange, listeners, ref, style, scanTemplates }) {
+    // Tìm template từ props thay vì từ file import
     const template = scanTemplates.find(t => t.id === step.type);
+
+    // Thêm một bước kiểm tra an toàn
+    if (!template) {
+        return (
+            <Box ref={ref} style={style} bg="red.1" p="xs" radius="sm" mb="xs">
+                <Text c="red">Lỗi: Không tìm thấy cấu hình cho loại scan "{step.type}"</Text>
+            </Box>
+        );
+    }
 
     return (
         // Box ngoài cùng sẽ nhận ref và style cho việc kéo thả
