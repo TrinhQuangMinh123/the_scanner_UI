@@ -1,4 +1,4 @@
-// src/features/dashboard/components/JobRow.jsx
+// src/features/dashboard/components/WorkflowRow.jsx
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Table, Group, Button, Text, Badge } from '@mantine/core';
@@ -15,12 +15,11 @@ const getStatusColor = (status) => {
     }
 };
 
-function JobRow({ job, onJobDeleted }) {
+function WorkflowRow({ workflow, onCancel }) {
     const navigate = useNavigate();
 
-    // 1. Hàm điều hướng đến trang chi tiết
     const handleNavigate = () => {
-        navigate(`/jobs/${job.job_id}`);
+        navigate(`/jobs/${workflow.workflow_id}`);
     };
 
     // 2. Hàm xử lý hủy job
@@ -44,39 +43,47 @@ function JobRow({ job, onJobDeleted }) {
     };
 
     // Định dạng lại thời gian cho dễ đọc
-    const formattedDate = new Date(job.created_at).toLocaleString('vi-VN');
+    const formattedDate = new Date(workflow.created_at).toLocaleString('vi-VN');
+    const progressText = `${workflow.completed_steps || 0}/${workflow.total_steps || 0}`;
 
     return (
-        // 3. Thêm onClick để cả hàng đều có thể bấm vào
         <Table.Tr onClick={handleNavigate} style={{ cursor: 'pointer' }}>
             <Table.Td>
-                <Text component="span" ff="monospace" c="dimmed" size="xs">{job.job_id.split('-').pop()}</Text>
+                <Text ff="monospace" c="dimmed" size="xs">{workflow.workflow_id.split('-').pop()}</Text>
             </Table.Td>
             <Table.Td>
-                <Text fw={500} truncate="end">{job.targets.join(', ')}</Text>
+                <Text fw={500} truncate="end">{workflow.targets.join(', ')}</Text>
             </Table.Td>
             <Table.Td>
-                <Text size="sm">{job.tool}</Text>
+                <Text size="sm">{workflow.strategy}</Text>
             </Table.Td>
             <Table.Td>
-                <Badge color={getStatusColor(job.status)}>{job.status}</Badge>
+                <Text size="sm" c="dimmed">{progressText}</Text>
             </Table.Td>
             <Table.Td>
-                {/* 4. Hiển thị thông tin VPN chi tiết */}
-                <Text size="sm">{job.vpn_assignment?.country || 'N/A'}</Text>
+                <Badge color={getStatusColor(workflow.status)}>{workflow.status}</Badge>
             </Table.Td>
             <Table.Td>
                 <Text size="sm" c="dimmed">{formattedDate}</Text>
             </Table.Td>
             <Table.Td>
                 <Group gap="xs" justify="flex-end">
-                    {/* Nút tạm dừng có thể được thêm logic sau */}
-                    <Button variant="light" color="blue" size="compact-sm" onClick={(e) => e.stopPropagation()}>Tạm dừng</Button>
-                    <Button variant="light" color="red" size="compact-sm" onClick={handleCancelJob}>Hủy</Button>
+                    {/* 3. Gọi hàm `onCancel` từ prop khi nhấn nút */}
+                    <Button
+                        variant="light"
+                        color="red"
+                        size="compact-sm"
+                        onClick={(e) => {
+                            e.stopPropagation(); // Ngăn việc điều hướng trang
+                            onCancel(workflow.workflow_id); // Gọi hàm của cha và truyền ID lên
+                        }}
+                    >
+                        Hủy
+                    </Button>
                 </Group>
             </Table.Td>
         </Table.Tr>
     );
 }
 
-export default JobRow;
+export default WorkflowRow;
