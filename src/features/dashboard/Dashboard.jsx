@@ -5,7 +5,6 @@ import Header from './components/Header.jsx';
 import VitalSigns from './components/VitalSigns.jsx';
 import LiveJobs from './components/LiveJobs';
 import Controls from './components/Controls';
-import ResultsAnalysis from './components/ResultsAnalysis';
 
 function Dashboard() {
     return (
@@ -22,7 +21,6 @@ function Dashboard() {
                 </Grid.Col>
             </Grid>
 
-            <ResultsAnalysis />
         </Stack>
     );
 }

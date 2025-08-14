@@ -1,41 +1,56 @@
-import React from 'react';
+// src/pages/JobDetailPage.jsx
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Title, Text, Card, Stack, Group, Button, Progress, Table, Badge, Tabs, Alert } from '@mantine/core';
-import { mockJobDetails } from '../mockData'; // Import dữ liệu giả
+import { Title, Text, Card, Stack, Group, Button, Progress, Table, Badge, Tabs, Alert, Loader, Center } from '@mantine/core';
+import ResultViewer from '../features/jobs/results/ResultViewer'; // 1. Import component mới
 
-// Import các component con
-import PortScanResultsTable from '../features/jobs/results/PortScanResultsTable';
-import DnsResultsList from '../features/jobs/results/DnsResultsList';
+const POLLING_INTERVAL = 5000; // 5 giây
 
-// Hàm render kết quả chuyên biệt
-const renderResults = (subJob) => {
-    if (!subJob.results || subJob.results.length === 0) {
-        return <Text c="dimmed">Không có kết quả nào được tìm thấy.</Text>;
-    }
-    switch (subJob.tool) {
-        case 'port-scan':
-            return <PortScanResultsTable data={subJob.results} />;
-        case 'dns-lookup':
-            return <DnsResultsList data={subJob.results} />;
-        // Thêm các case khác cho nuclei-scan, httpx-scan ở đây
-        default:
-            return <pre>{JSON.stringify(subJob.results, null, 2)}</pre>;
-    }
-};
-
-const getStatusColor = (status) => {
-    switch (status) {
-        case 'completed': return 'green';
-        case 'running': return 'blue';
-        case 'failed': return 'red';
-        case 'submitted': return 'gray';
-        default: return 'gray';
-    }
-};
+const getStatusColor = (status) => { /* ... hàm lấy màu ... */ };
 
 function JobDetailPage() {
-    const { jobId } = useParams(); // Trong demo, chúng ta không dùng ID này để fetch
-    const jobDetails = mockJobDetails; // Sử dụng dữ liệu giả
+    const { jobId } = useParams();
+    const [jobDetails, setJobDetails] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+
+    // Dùng useRef để lưu ID của interval, giúp việc dọn dẹp hiệu quả hơn
+    const intervalRef = useRef(null);
+
+    useEffect(() => {
+        const fetchData = async () => {
+            // Không hiển thị loader cho các lần polling, chỉ cho lần tải đầu tiên
+            // setLoading(true); // Bỏ dòng này
+            try {
+                const response = await fetch(`/api/workflows/${jobId}`);
+                if (!response.ok) throw new Error(`Không tìm thấy job hoặc có lỗi xảy ra.`);
+                const data = await response.json();
+                setJobDetails(data);
+
+                // 2. Dừng polling nếu luồng quét đã kết thúc
+                const finalStatus = ['completed', 'failed', 'cancelled'];
+                if (finalStatus.includes(data.workflow.status)) {
+                    clearInterval(intervalRef.current);
+                }
+            } catch (e) {
+                setError(e.message);
+                clearInterval(intervalRef.current); // Dừng polling nếu có lỗi
+            } finally {
+                setLoading(false); // Chỉ tắt loader của lần tải đầu
+            }
+        };
+
+        // 3. Polling: Gọi API lần đầu, và sau đó lặp lại
+        void fetchData(); // Gọi ngay lần đầu
+        intervalRef.current = setInterval(fetchData, POLLING_INTERVAL);
+
+        // 4. Dọn dẹp interval khi component bị unmount
+        return () => clearInterval(intervalRef.current);
+    }, [jobId]);
+
+    if (loading) return <Center><Loader size="lg" /></Center>;
+    if (error) return <Alert color="red" title="Lỗi">{error}</Alert>;
+    if (!jobDetails) return <Text>Không có dữ liệu cho job này.</Text>;
 
     const completedSubJobs = jobDetails.sub_jobs.filter(job => job.status === 'completed');
 
@@ -84,13 +99,14 @@ function JobDetailPage() {
                         <Tabs.List>
                             {completedSubJobs.map(job => (
                                 <Tabs.Tab key={job.job_id} value={job.tool}>
-                                    {job.tool} ({job.results.length})
+                                    {job.tool}
                                 </Tabs.Tab>
                             ))}
                         </Tabs.List>
                         {completedSubJobs.map(job => (
                             <Tabs.Panel key={job.job_id} value={job.tool} pt="md">
-                                {renderResults(job)}
+                                {/* 5. Sử dụng component mới ResultViewer */}
+                                <ResultViewer subJob={job} />
                             </Tabs.Panel>
                         ))}
                     </Tabs>

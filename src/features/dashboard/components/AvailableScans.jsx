@@ -1,26 +1,32 @@
 // src/features/dashboard/components/AvailableScans.jsx
 import React from 'react';
-import { Stack, Button, Text } from '@mantine/core';
-// Bỏ import tĩnh: import { scanTemplates } from '../../../scanTemplates';
+import { Stack, Button, Text, Skeleton } from '@mantine/core';
 
-// Component giờ nhận `scanTemplates` từ props
-function AvailableScans({ onAddScan, scanTemplates = [] }) {
+// Component giờ nhận `isLoading` từ props
+function AvailableScans({ scanTemplates, isLoading, onAddScan }) {
     return (
         <Stack>
             <Text fw={500}>Các loại scan có sẵn</Text>
-            {scanTemplates.length > 0 ? (
-                scanTemplates.map(template => (
-                    <Button
-                        key={template.id}
-                        variant="outline"
-                        onClick={() => onAddScan(template.id)}
-                    >
-                        {template.name}
-                    </Button>
-                ))
-            ) : (
-                <Text c="dimmed" size="sm">Đang tải cấu hình...</Text>
+
+            {/* Hiển thị Skeleton trong khi tải */}
+            {isLoading && (
+                <>
+                    <Skeleton height={36} radius="sm" />
+                    <Skeleton height={36} radius="sm" />
+                    <Skeleton height={36} radius="sm" />
+                </>
             )}
+
+            {/* Hiển thị các nút bấm khi đã tải xong */}
+            {!isLoading && scanTemplates.map(template => (
+                <Button
+                    key={template.id}
+                    variant="outline"
+                    onClick={() => onAddScan(template.id)}
+                >
+                    {template.name}
+                </Button>
+            ))}
         </Stack>
     );
 }

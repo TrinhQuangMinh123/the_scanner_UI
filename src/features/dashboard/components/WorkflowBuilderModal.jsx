@@ -12,27 +12,36 @@ function WorkflowBuilderModal({ opened, onClose }) {
     const navigate = useNavigate(); // KHỞI TẠO hook
     const poolIps = useIpPoolStore((state) => state.ips);
 
-    // --- State gốc của bạn được giữ nguyên ---
+    // State lưu trữ dữ liệu form
     const [targets, setTargets] = useState('');
     const [workflow, setWorkflow] = useState([]);
     const [strategy, setStrategy] = useState('deep');
-    const [countries, setCountries] = useState([]);
-    const [selectedCountry, setSelectedCountry] = useState(null);
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const [error, setError] = useState(null); // Đổi tên state lỗi chung
-    const [isLoading, setIsLoading] = useState(false); // State tải dữ liệu ban đầu
+    const [selectedCountry, setSelectedCountry] = useState('AUTO');
 
-    // 3. THÊM MỚI: State để lưu cấu hình scan từ API
+    // --- STATE MỚI ---
+    const [selectedProfile, setSelectedProfile] = useState(null); // Lưu profile VPN cụ thể được chọn
+    const [availableProfiles, setAvailableProfiles] = useState([]); // Lưu danh sách profile của quốc gia đã chọn
+    const [isLoadingProfiles, setIsLoadingProfiles] = useState(false); // Trạng thái tải cho profile
+
+    // State cho dữ liệu tải từ API
     const [scanTemplates, setScanTemplates] = useState([]);
+    const [availableCountries, setAvailableCountries] = useState([]);
+
+    // State quản lý trạng thái giao diện (UX)
+    const [isLoadingTools, setIsLoadingTools] = useState(false);
+    const [isLoadingCountries, setIsLoadingCountries] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [error, setError] = useState(null);
 
     useEffect(() => {
         if (opened) {
-            // Giữ nguyên cấu trúc `useEffect` và `void fetch` của bạn
             const fetchInitialData = async () => {
-                setIsLoading(true);
+                // Sửa lại: Dùng đúng các state setter
+                setIsLoadingTools(true);
+                setIsLoadingCountries(true);
                 setError(null);
+
                 try {
-                    // Gọi song song 2 API để tối ưu tốc độ
                     const [toolsRes, countriesRes] = await Promise.all([
                         fetch('/api/tools'),
                         fetch('/api/vpns/countries')
@@ -44,27 +53,64 @@ function WorkflowBuilderModal({ opened, onClose }) {
                     const toolsData = await toolsRes.json();
                     const countriesData = await countriesRes.json();
 
-                    // 4. LƯU CẤU HÌNH SCAN ĐỘNG
-                    setScanTemplates(toolsData || []);
+                    // Sửa lại: Truy cập vào key "tools"
+                    setScanTemplates(toolsData.tools || []);
 
-                    // Xử lý response countries như file của bạn
+                    // Sửa lại: Dùng đúng state setter
+                    // Giả sử response là { countries: [{ code, ... }] } theo code của bạn
                     const countryList = countriesData.countries || [];
                     const formattedCountries = countryList.map(country => ({
                         value: country.code,
                         label: country.code
                     }));
-                    setCountries(formattedCountries);
+                    setAvailableCountries(formattedCountries);
 
                 } catch (e) {
                     setError(e.message);
-                    console.error("Failed to fetch initial data:", e);
                 } finally {
-                    setIsLoading(false);
+                    // Sửa lại: Dùng đúng các state setter
+                    setIsLoadingTools(false);
+                    setIsLoadingCountries(false);
                 }
             };
             void fetchInitialData();
         }
     }, [opened]);
+
+    useEffect(() => {
+        // Nếu không chọn quốc gia cụ thể, hoặc chọn AUTO, thì reset danh sách profile
+        if (!selectedCountry || selectedCountry === 'AUTO') {
+            setAvailableProfiles([]);
+            setSelectedProfile(null); // Reset luôn lựa chọn profile cũ
+            return;
+        }
+
+        const fetchProfiles = async () => {
+            setIsLoadingProfiles(true);
+            try {
+                const response = await fetch(`/api/vpns?country=${selectedCountry}`);
+                if (!response.ok) throw new Error('Không thể tải danh sách profile VPN.');
+                const data = await response.json();
+                // 1. Truy cập vào mảng 'vpns' bên trong object data
+                const vpnList = data.vpns || [];
+
+                // 2. Map qua mảng vpnList mới
+                const formattedProfiles = vpnList.map(p => ({
+                    value: p.filename,
+                    label: p.hostname // Dùng hostname làm nhãn vì response không có ip riêng
+                }));
+                setAvailableProfiles(formattedProfiles);
+            } catch (error) {
+                console.error(error);
+                setAvailableProfiles([]);
+            } finally {
+                setIsLoadingProfiles(false);
+            }
+        };
+
+        void fetchProfiles();
+
+    }, [selectedCountry]); // Phụ thuộc vào selectedCountry
 
     // Hàm để nhập danh sách từ IP Pool vào ô targets
     const handleImportFromPool = () => {
@@ -88,8 +134,10 @@ function WorkflowBuilderModal({ opened, onClose }) {
         const finalWorkflow = {
             targets: targetList,
             strategy,
-            country: selectedCountry,
-            steps: workflow,
+            // Ưu tiên gửi profile cụ thể nếu được chọn
+            vpn_profile: selectedProfile, // Backend sẽ dùng cái này nếu có
+            country: selectedCountry, // Gửi cả country để backend dự phòng
+            steps: workflow.map(step => ({ tool_id: step.type, params: step.params })),
         };
 
         try {
@@ -133,23 +181,15 @@ function WorkflowBuilderModal({ opened, onClose }) {
         }
     };
 
-    const addScanToWorkflow = (scanId) => {
-        const scanTemplate = scanTemplates.find(t => t.id === scanId);
-        if (scanTemplate) {
-            // Thêm một bước mới với ID duy nhất và các tham số mặc định
-            const newStep = {
-                id: `${scanId}-${Date.now()}`, // ID duy nhất cho mỗi bước
-                type: scanId,
-                name: scanTemplate.name,
-                params: scanTemplate.fields.reduce((acc, field) => {
-                    if (field.defaultValue !== undefined) {
-                        acc[field.name] = field.defaultValue;
-                    }
-                    return acc;
-                }, {}),
-            };
-            setWorkflow(currentWorkflow => [...currentWorkflow, newStep]);
-        }
+    const addScanToWorkflow = (toolName) => {
+        // Logic thêm một bước scan mới vào workflow dựa trên toolName
+        const newStep = {
+            id: `${toolName}-${Date.now()}`,
+            type: toolName, // Dùng toolName làm 'type'
+            name: toolName, // Và cũng là 'name'
+            params: {}, // Khởi tạo params rỗng
+        };
+        setWorkflow(currentWorkflow => [...currentWorkflow, newStep]);
     };
 
     const removeStep = (stepId) => {
@@ -168,59 +208,84 @@ function WorkflowBuilderModal({ opened, onClose }) {
 
     return (
         <Modal opened={opened} onClose={onClose} title="Xây dựng Luồng quét" size="xl">
-            {isLoading && <Loader style={{ position: 'absolute', top: '50%', left: '50%' }} />}
-            {error && (
-                <Alert color="orange" icon={<IconAlertCircle size={16} />}>
-                    Không thể tải dữ liệu cần thiết: {error}
-                </Alert>
-            )}
-            {!isLoading && !error && (
-                <Stack gap="xl">
-                    <div>
-                        {/* Thay TextInput bằng Textarea */}
-                        <Textarea
-                            label="Mục tiêu"
-                            description="Nhập nhiều mục tiêu, mỗi mục tiêu trên một dòng."
-                            placeholder="example.com&#10;1.1.1.1&#10;192.168.1.0/24"
-                            required
-                            autosize
-                            minRows={3}
-                            value={targets}
-                            onChange={(e) => setTargets(e.currentTarget.value)}
-                        />
-                        {/* Nút mới để liên kết với IP Pool */}
-                        <Button
-                            variant="light"
-                            size="xs"
-                            mt="xs"
-                            onClick={handleImportFromPool}
-                        >
-                            Sử dụng danh sách từ IP Pool
-                        </Button>
-                    </div>
-                    <Select
-                        label="Chọn Quốc gia VPN (Tùy chọn)"
-                        placeholder="Mặc định (tự động chọn)"
-                        data={countries}
-                        value={selectedCountry}
-                        onChange={setSelectedCountry}
-                        clearable
+            {/* Form sẽ luôn hiển thị */}
+            <Stack gap="xl">
+                <div>
+                    {/* Thay TextInput bằng Textarea */}
+                    <Textarea
+                        label="Mục tiêu"
+                        description="Nhập nhiều mục tiêu, mỗi mục tiêu trên một dòng."
+                        placeholder="example.com&#10;1.1.1.1&#10;192.168.1.0/24"
+                        required
+                        autosize
+                        minRows={3}
+                        value={targets}
+                        onChange={(e) => setTargets(e.currentTarget.value)}
                     />
-                    <Grid>
-                        <Grid.Col span={{ base: 12, md: 5 }}>
-                            {/* 6. Truyền `scanTemplates` từ state vào component con */}
-                            <AvailableScans onAddScan={addScanToWorkflow} scanTemplates={scanTemplates} />
-                        </Grid.Col>
-                        <Grid.Col span={{ base: 12, md: 7 }}>
-                            <WorkflowSteps
-                                steps={workflow}
-                                setSteps={setWorkflow}
-                                onRemove={removeStep}
-                                onParamsChange={handleParamsChange}
-                                scanTemplates={scanTemplates} // Truyền cả vào đây để `ScanStep` có thể dùng
-                            />
-                        </Grid.Col>
-                    </Grid>
+                    {/* Nút mới để liên kết với IP Pool */}
+                    <Button
+                        variant="light"
+                        size="xs"
+                        mt="xs"
+                        onClick={handleImportFromPool}
+                    >
+                        Sử dụng danh sách từ IP Pool
+                    </Button>
+                </div>
+
+                <Select
+                    label="Chọn Quốc gia VPN"
+                    placeholder="Chọn một quốc gia"
+                    data={availableCountries}
+                    value={selectedCountry}
+                    onChange={(value) => {
+                        setSelectedCountry(value);
+                        // Khi đổi quốc gia, reset lựa chọn profile
+                        setSelectedProfile(null);
+                    }}
+                    disabled={isLoadingCountries}
+                    rightSection={isLoadingCountries ? <Loader size="xs" /> : null}
+                />
+
+                {/* Ô chọn IP/Profile cụ thể (component mới) */}
+                {/* Chỉ hiển thị khi một quốc gia được chọn và không phải là AUTO */}
+                {(selectedCountry && selectedCountry !== 'AUTO') && (
+                        <Select
+                            label="Chọn Profile VPN cụ thể (Tùy chọn)"
+                            placeholder={isLoadingProfiles ? "Đang tải profile..." : "Mặc định (ngẫu nhiên trong quốc gia)"}
+                            data={availableProfiles}
+                            value={selectedProfile}
+                            onChange={setSelectedProfile}
+                            disabled={isLoadingProfiles}
+                            rightSection={isLoadingProfiles ? <Loader size="xs" /> : null}
+                            clearable
+                            mt="md" // Thêm một chút khoảng cách
+                        />
+                    )}
+
+
+                <Grid>
+                    <Grid.Col span={{ base: 12, md: 5 }}>
+                        {/* 5. Truyền trạng thái tải tools xuống component con */}
+                        <AvailableScans
+                            scanTemplates={scanTemplates}
+                            isLoading={isLoadingTools}
+                            onAddScan={addScanToWorkflow}
+                        />
+                    </Grid.Col>
+                    <Grid.Col span={{ base: 12, md: 7 }}>
+                        <WorkflowSteps
+                            steps={workflow}
+                            setSteps={setWorkflow}
+                            onRemove={removeStep}
+                            onParamsChange={handleParamsChange}
+                            scanTemplates={scanTemplates} // Truyền cả vào đây để `ScanStep` có thể dùng
+                        />
+                    </Grid.Col>
+                </Grid>
+
+                {/* Hiển thị lỗi chung nếu có */}
+                {error && <Alert color="red" title="Lỗi">{error}</Alert>}
 
                 <div>
                     <Text fw={500} size="sm">Chiến lược quét</Text>
@@ -238,8 +303,7 @@ function WorkflowBuilderModal({ opened, onClose }) {
                     <Button onClick={handleSubmit} loading={isSubmitting} size="md">
                         Bắt đầu Luồng quét
                     </Button>
-                </Stack>
-            )}
+            </Stack>
         </Modal>
     );
 }

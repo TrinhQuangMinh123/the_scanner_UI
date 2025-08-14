@@ -5,7 +5,7 @@ import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from 
 import { SortableContext, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
 import SortableScanStep from './SortableScanStep';
 
-function WorkflowSteps({ steps, setSteps, onRemove, onParamsChange }) {
+function WorkflowSteps({ steps, setSteps, onRemove, onParamsChange, scanTemplates }) {
     const sensors = useSensors(useSensor(PointerSensor, {
         // Yêu cầu di chuyển chuột một chút trước khi bắt đầu kéo
         activationConstraint: {
