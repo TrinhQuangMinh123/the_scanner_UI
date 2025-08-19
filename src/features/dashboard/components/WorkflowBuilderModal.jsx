@@ -155,7 +155,7 @@ function WorkflowBuilderModal({ opened, onClose }) {
         };
 
         try {
-            const response = await fetch('/api/scans', {
+            const response = await fetch('/api/scan/workflow', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(finalWorkflow),
@@ -171,12 +171,12 @@ function WorkflowBuilderModal({ opened, onClose }) {
             notifications.show({
                 color: 'green',
                 title: 'Thành công!',
-                message: `Đã tạo Job tổng: ${masterJob.master_job_id}`,
+                message: `Đã tạo Job tổng: ${masterJob.workflow_id}`,
                 icon: <IconCheck size={18} />,
             });
 
             onClose();
-            navigate(`/jobs/${masterJob.master_job_id}`); // Điều hướng đến trang chi tiết
+            navigate(`/jobs/${masterJob.workflow_id}`); // Điều hướng đến trang chi tiết
 
         } catch (e) {
             notifications.show({

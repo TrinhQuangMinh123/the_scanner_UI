@@ -1,6 +1,6 @@
 // src/features/dashboard/components/ScanStep.jsx
 import React from 'react';
-import { Accordion, TextInput, Switch, Select, MultiSelect, Group, ActionIcon, Text, Box } from '@mantine/core';
+import { Accordion, TextInput, Switch, Select, MultiSelect, Group, ActionIcon, Text, Box, NumberInput } from '@mantine/core';
 import { IconGripVertical, IconTrash } from '@tabler/icons-react';
 
 // Hàm để render một trường form động
@@ -58,6 +58,15 @@ const renderFormField = (field, params, handleParamChange) => {
                     value={params[field.name] || []}
                     onChange={(value) => handleParamChange(field.name, value)}
                     clearable
+                />
+            );
+        case 'NumberInput':
+            return (
+                <NumberInput
+                    key={key}
+                    {...otherProps}
+                    value={params[field.name] === undefined ? field.defaultValue : params[field.name]}
+                    onChange={(value) => handleParamChange(field.name, value)}
                 />
             );
         default:
