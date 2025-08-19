@@ -1,0 +1,17 @@
+# Bỏ qua các dependencies đã cài ở máy local
+node_modules
+
+# Bỏ qua thư mục build (sẽ được tạo bên trong container)
+dist
+
+# Bỏ qua các file log và file cấu hình của môi trường
+.env
+.env.*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Bỏ qua các file cấu hình của IDE
+.vscode
+.idea

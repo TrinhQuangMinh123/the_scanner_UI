@@ -1,8 +1,9 @@
 // src/pages/JobDetailPage.jsx
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback  } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Title, Text, Card, Stack, Group, Button, Progress, Table, Badge, Tabs, Alert, Loader, Center, Grid, Code, Tooltip, SegmentedControl } from '@mantine/core';
 import { IconAlertCircle } from '@tabler/icons-react';
+import { IconRefresh } from '@tabler/icons-react';
 
 // Giả định các component con này đã được tạo và import
 import ResultViewer from '../features/jobs/results/ResultViewer';
@@ -38,7 +39,7 @@ const OptionsDisplay = ({ options }) => {
 // --- Main Component ---
 
 function JobDetailPage() {
-    // === 1. STATE MANAGEMENT ===
+    // === STATE MANAGEMENT ===
     const { jobId: workflowId } = useParams();
     const [viewMode, setViewMode] = useState('summary'); // 'summary' hoặc 'tool'
 
@@ -49,7 +50,36 @@ function JobDetailPage() {
     const [error, setError] = useState(null);
     const intervalRef = useRef(null);
 
-    // === 2. DATA FETCHING & POLLING ===
+    const [isRefreshing, setIsRefreshing] = useState(false); // State mới cho nút refresh
+
+    //Gộp logic fetch vào một hàm useCallback để có thể tái sử dụng
+    const handleRefresh = useCallback(async () => {
+        setIsRefreshing(true); // Bật trạng thái loading của nút
+        setError(null);
+        try {
+            // Dùng Promise.all để gọi lại cả hai API
+            await Promise.all([
+                (async () => {
+                    const statusRes = await fetch(`/api/workflows/${workflowId}/status`);
+                    if (!statusRes.ok) throw new Error('Lỗi tải trạng thái.');
+                    const status = await statusRes.json();
+                    setStatusData(status);
+                })(),
+                (async () => {
+                    const summaryRes = await fetch(`/api/workflows/${workflowId}/summary`);
+                    if (!summaryRes.ok) throw new Error('Lỗi tải tóm tắt.');
+                    const summary = await summaryRes.json();
+                    setSummaryData(summary);
+                })(),
+            ]);
+        } catch (e) {
+            setError(e.message);
+        } finally {
+            setIsRefreshing(false); // Tắt trạng thái loading
+        }
+    }, [workflowId]); // Phụ thuộc vào workflowId
+
+    // ===DATA FETCHING & POLLING ===
     useEffect(() => {
         const fetchStatusData = async () => {
             try {
@@ -106,7 +136,20 @@ function JobDetailPage() {
         <Stack gap="xl">
             <Group justify="space-between">
                 <Title order={1}>Chi tiết Luồng quét</Title>
-                <Button component={Link} to="/" variant="light">Quay lại Dashboard</Button>
+                {/* 2. Thêm nút "Làm mới" vào đây */}
+                <Group>
+                    <Button
+                        leftSection={<IconRefresh size={16} />}
+                        onClick={handleRefresh}
+                        loading={isRefreshing}
+                        variant="default"
+                    >
+                        Làm mới
+                    </Button>
+                    <Button component={Link} to="/" variant="light">
+                        Quay lại Dashboard
+                    </Button>
+                </Group>
             </Group>
 
             {/* Thẻ thông tin tổng quan (dữ liệu từ statusData) */}

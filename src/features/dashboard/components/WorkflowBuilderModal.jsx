@@ -1,7 +1,19 @@
 // src/features/dashboard/components/WorkflowBuilderModal.jsx
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Modal, Stack, Textarea, SegmentedControl, Button, Grid, Text, Select, Alert, Loader } from '@mantine/core';
+import {
+    Modal,
+    Stack,
+    Textarea,
+    SegmentedControl,
+    Button,
+    Grid,
+    Text,
+    Select,
+    Alert,
+    Loader,
+    Slider
+} from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { IconAlertCircle, IconCheck } from '@tabler/icons-react';
 import { useIpPoolStore } from '../../../stores/ipPoolStore';
@@ -32,6 +44,8 @@ function WorkflowBuilderModal({ opened, onClose }) {
     const [isLoadingCountries, setIsLoadingCountries] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState(null);
+
+    const [threads, setThreads] = useState(10); // Giá trị mặc định là 10
 
     useEffect(() => {
         if (opened) {
@@ -122,21 +136,21 @@ function WorkflowBuilderModal({ opened, onClose }) {
         const targetList = targets.split('\n').filter(t => t.trim() !== '');
         if (targetList.length === 0 || workflow.length === 0) {
             notifications.show({
+                color: 'orange',
                 title: 'Thiếu thông tin',
                 message: 'Vui lòng nhập Mục tiêu và thêm ít nhất một bước quét.',
-                color: 'yellow',
             });
             return;
         }
 
-        setIsSubmitting(true); // Bắt đầu gửi
+        setIsSubmitting(true); // Bắt đầu trạng thái "đang gửi"
 
         const finalWorkflow = {
             targets: targetList,
             strategy,
-            // Ưu tiên gửi profile cụ thể nếu được chọn
-            vpn_profile: selectedProfile, // Backend sẽ dùng cái này nếu có
-            country: selectedCountry, // Gửi cả country để backend dự phòng
+            country: selectedCountry,
+            vpn_profile: selectedProfile,
+            threads: threads, // Thêm số luồng vào request
             steps: workflow.map(step => ({ tool_id: step.type, params: step.params })),
         };
 
@@ -148,36 +162,31 @@ function WorkflowBuilderModal({ opened, onClose }) {
             });
 
             if (!response.ok) {
-                // Lấy thông tin lỗi từ backend nếu có
-                const errorData = await response.json().catch(() => ({ message: 'Lỗi không xác định từ server.' }));
-                throw new Error(errorData.message || `Lỗi HTTP: ${response.status}`);
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.detail || 'Gửi yêu cầu thất bại.');
             }
 
-            const masterJob = await response.json(); // Nhận về job tổng
+            const masterJob = await response.json();
 
-            // 4. Hiển thị thông báo thành công
             notifications.show({
-                title: 'Thành công!',
-                message: 'Đã gửi yêu cầu quét thành công.',
                 color: 'green',
+                title: 'Thành công!',
+                message: `Đã tạo Job tổng: ${masterJob.master_job_id}`,
                 icon: <IconCheck size={18} />,
             });
 
-            onClose(); // Đóng modal
+            onClose();
+            navigate(`/jobs/${masterJob.master_job_id}`); // Điều hướng đến trang chi tiết
 
-            // CHUYỂN HƯỚNG người dùng đến trang chi tiết job
-            navigate(`/jobs/${masterJob.master_job_id}`);
-
-        } catch (error) {
-            // 5. Hiển thị thông báo thất bại
+        } catch (e) {
             notifications.show({
-                title: 'Gửi yêu cầu thất bại',
-                message: `Đã có lỗi xảy ra: ${error.message}`,
                 color: 'red',
+                title: 'Thất bại',
+                message: e.message,
                 icon: <IconAlertCircle size={18} />,
             });
         } finally {
-            setIsSubmitting(false); // Kết thúc gửi
+            setIsSubmitting(false); // Kết thúc trạng thái "đang gửi"
         }
     };
 
@@ -297,6 +306,20 @@ function WorkflowBuilderModal({ opened, onClose }) {
                             { label: 'Quét Sâu (Toàn diện từng mục tiêu)', value: 'deep' },
                             { label: 'Quét Rộng (Nhanh trên diện rộng)', value: 'wide' },
                         ]}
+                    />
+                </div>
+
+                <div>
+                    <Text fw={500} size="sm">
+                        Số luồng đồng thời (Threads): <Text component="span" fw={700}>{threads}</Text>
+                    </Text>
+                    <Text size="xs" c="dimmed">Tăng số luồng có thể tăng tốc độ quét nhưng tốn nhiều tài nguyên hơn.</Text>
+                    <Slider
+                        value={threads}
+                        onChange={setThreads}
+                        min={1}
+                        max={100} // Giới hạn tối đa là 100
+                        mt="xs"
                     />
                 </div>
 
