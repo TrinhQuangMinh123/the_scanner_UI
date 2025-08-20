@@ -3,7 +3,6 @@ export const mockJobDetails = {
     workflow: {
         workflow_id: "workflow-488a97f9",
         targets: ["example.com", "github.com"],
-        strategy: "deep",
         status: "running",
         total_steps: 4,
         completed_steps: 2,

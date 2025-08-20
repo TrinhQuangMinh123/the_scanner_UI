@@ -159,7 +159,6 @@ function JobDetailPage() {
                     <Grid.Col span={{ base: 12, md: 6 }}>
                         <Text><b>ID:</b> <Code>{workflow.workflow_id}</Code></Text>
                         <Text mt="xs"><b>Mục tiêu:</b> {workflow?.targets?.join(', ') || 'Đang tải...'}</Text>
-                        <Text mt="xs"><b>Chiến lược:</b> {workflow.strategy}</Text>
                         <Group gap="xs" mt="xs">
                             <Text component="span"><b>Trạng thái:</b></Text>
                             <Badge color={getStatusColor(workflow.status)}>{workflow.status}</Badge>

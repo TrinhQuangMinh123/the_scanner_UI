@@ -89,7 +89,6 @@ function WorkflowsHistory() {
                                 <Table.Tr>
                                     <Table.Th>Workflow ID</Table.Th>
                                     <Table.Th>Mục tiêu</Table.Th>
-                                    <Table.Th>Chiến lược</Table.Th>
                                     <Table.Th>Tiến trình</Table.Th>
                                     <Table.Th>Trạng thái</Table.Th>
                                     <Table.Th>Thời gian tạo</Table.Th>

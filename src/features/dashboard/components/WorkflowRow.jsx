@@ -55,9 +55,6 @@ function WorkflowRow({ workflow, onCancel }) {
                 <Text fw={500} truncate="end">{workflow.targets.join(', ')}</Text>
             </Table.Td>
             <Table.Td>
-                <Text size="sm">{workflow.strategy}</Text>
-            </Table.Td>
-            <Table.Td>
                 <Text size="sm" c="dimmed">{progressText}</Text>
             </Table.Td>
             <Table.Td>

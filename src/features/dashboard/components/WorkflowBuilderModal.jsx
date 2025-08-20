@@ -5,7 +5,6 @@ import {
     Modal,
     Stack,
     Textarea,
-    SegmentedControl,
     Button,
     Grid,
     Text,
@@ -27,7 +26,6 @@ function WorkflowBuilderModal({ opened, onClose }) {
     // State lưu trữ dữ liệu form
     const [targets, setTargets] = useState('');
     const [workflow, setWorkflow] = useState([]);
-    const [strategy, setStrategy] = useState('deep');
     const [selectedCountry, setSelectedCountry] = useState('AUTO');
 
     // --- STATE MỚI ---
@@ -147,7 +145,6 @@ function WorkflowBuilderModal({ opened, onClose }) {
 
         const finalWorkflow = {
             targets: targetList,
-            strategy,
             country: selectedCountry,
             vpn_profile: selectedProfile,
             threads: threads, // Thêm số luồng vào request
@@ -295,19 +292,6 @@ function WorkflowBuilderModal({ opened, onClose }) {
 
                 {/* Hiển thị lỗi chung nếu có */}
                 {error && <Alert color="red" title="Lỗi">{error}</Alert>}
-
-                <div>
-                    <Text fw={500} size="sm">Chiến lược quét</Text>
-                    <SegmentedControl
-                        fullWidth
-                        value={strategy}
-                        onChange={setStrategy}
-                        data={[
-                            { label: 'Quét Sâu (Toàn diện từng mục tiêu)', value: 'deep' },
-                            { label: 'Quét Rộng (Nhanh trên diện rộng)', value: 'wide' },
-                        ]}
-                    />
-                </div>
 
                 <div>
                     <Text fw={500} size="sm">

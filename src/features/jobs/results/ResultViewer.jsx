@@ -2,10 +2,7 @@
 import React, { useState, useEffect } from 'react';
 
 // --- Imports từ Mantine UI Kit ---
-// Stack: Dùng để sắp xếp các component theo chiều dọc (bảng kết quả ở trên, thanh phân trang ở dưới).
-// Group: Dùng để căn giữa thanh phân trang.
-// Pagination: Component UI cho phép người dùng điều hướng qua các trang.
-import { Pagination, Group, Stack } from '@mantine/core';
+import { Stack, Pagination, Group } from '@mantine/core';
 
 // --- Imports các Component con ---
 import ResultsWrapper from './ResultsWrapper';
@@ -16,14 +13,11 @@ import WpscanResults from './WpscanResults';
 import HttpxResultsTable from './HttpxResultsTable';
 import DirsearchScanResultsTable from './DirsearchScanResultsTable';
 
-// Hằng số định nghĩa số lượng kết quả hiển thị trên mỗi trang.
-// Việc tách ra thành hằng số giúp dễ dàng thay đổi sau này.
+// Hằng số: Số lượng kết quả hiển thị trên mỗi trang.
 const ITEMS_PER_PAGE = 10;
 
 /**
- * Hàm renderResults: Dựa vào 'subJob.tool', component này sẽ quyết định
- * component con nào sẽ được dùng để hiển thị dữ liệu.
- * Đây là một cách tiếp cận linh hoạt để hỗ trợ nhiều loại kết quả khác nhau.
+ * Quyết định component nào sẽ được dùng để hiển thị kết quả dựa vào `subJob.tool`.
  * @param {object} subJob - Object chứa thông tin về sub-job và kết quả của nó.
  * @returns {JSX.Element} - Component tương ứng để hiển thị kết quả.
  */
@@ -42,95 +36,75 @@ const renderResults = (subJob) => {
         case 'dirsearch-scan':
             return <DirsearchScanResultsTable data={subJob.results} />;
         default:
-            // Nếu không có component hiển thị chuyên dụng, hiển thị dữ liệu dưới dạng JSON thô.
+            // Fallback: Hiển thị dữ liệu JSON thô nếu không có component chuyên dụng.
             return <pre>{JSON.stringify(subJob.results, null, 2)}</pre>;
     }
 };
 
 /**
  * Component ResultViewer:
- * Chịu trách nhiệm fetch và hiển thị kết quả chi tiết cho một sub-job cụ thể,
- * đồng thời quản lý trạng thái tải, lỗi, và phân trang.
+ * Fetch và hiển thị kết quả chi tiết cho một sub-job, hỗ trợ phân trang.
  */
 function ResultViewer({ subJob }) {
-    // --- Quản lý State (State Management) ---
-
-    // `results`: Lưu trữ danh sách kết quả cho trang hiện tại.
+    // 1. Quản lý state cho kết quả và phân trang
     const [results, setResults] = useState(null);
+    const [paginationInfo, setPaginationInfo] = useState(null);
+    const [activePage, setPage] = useState(1); // Trang hiện tại, mặc định là 1
 
-    // `pagination`: Lưu trữ thông tin về phân trang từ API (ví dụ: total_pages).
-    const [pagination, setPagination] = useState(null);
-
-    // `activePage`: Lưu trữ trang mà người dùng đang xem. Mặc định là trang 1.
-    const [activePage, setPage] = useState(1);
-
-    // `loading`: Cờ boolean để cho biết dữ liệu đang được tải hay không.
+    // State cho trạng thái tải và lỗi
     const [loading, setLoading] = useState(true);
-
-    // `error`: Lưu trữ thông báo lỗi nếu có sự cố khi fetch dữ liệu.
     const [error, setError] = useState(null);
 
-    // --- Hook `useEffect` để fetch dữ liệu ---
+    // Hook useEffect để fetch dữ liệu khi component được mount hoặc khi trang thay đổi
     useEffect(() => {
         const fetchResults = async () => {
-            setLoading(true); // Bắt đầu quá trình tải, hiển thị spinner.
-            setError(null);   // Xóa lỗi cũ (nếu có) trước khi fetch lần mới.
-
+            setLoading(true);
+            setError(null);
             try {
-                // Xây dựng URL động với các tham số cho phân trang.
+                // 2. Xây dựng URL động với tham số page và page_size cho API
                 const apiUrl = `/api/sub_jobs/${subJob.job_id}/results?page=${activePage}&page_size=${ITEMS_PER_PAGE}`;
 
-                // Gọi API để lấy dữ liệu.
                 const response = await fetch(apiUrl);
                 if (!response.ok) {
                     throw new Error("Không thể tải kết quả chi tiết.");
                 }
 
-                // Parse dữ liệu JSON từ phản hồi của API.
-                // API được kỳ vọng trả về một object có dạng: { results: [...], pagination: {...} }
                 const data = await response.json();
 
-                // Cập nhật state với dữ liệu mới.
+                // 3. Cập nhật state với dữ liệu nhận được từ response
+                // API trả về object có dạng: { results: [...], pagination: {...} }
                 setResults(data.results || []);
-                setPagination(data.pagination || null);
+                setPaginationInfo(data.pagination || null);
 
             } catch (e) {
-                setError(e.message); // Nếu có lỗi, cập nhật state `error`.
+                setError(e.message);
             } finally {
-                setLoading(false); // Kết thúc quá trình tải, ẩn spinner.
+                setLoading(false);
             }
         };
 
         void fetchResults();
 
-        // Mảng phụ thuộc (dependency array):
-        // useEffect sẽ được chạy lại mỗi khi `subJob.job_id` hoặc `activePage` thay đổi.
-        // Điều này đảm bảo component sẽ tải lại dữ liệu khi người dùng chọn một sub-job khác
-        // hoặc chuyển sang một trang kết quả khác.
+        // 4. Dependency array: useEffect sẽ chạy lại khi subJob.job_id hoặc activePage thay đổi.
+        // Điều này đảm bảo dữ liệu được fetch lại khi người dùng chọn sub-job khác hoặc chuyển trang.
     }, [subJob.job_id, activePage]);
 
-    // --- Render Giao diện (JSX) ---
     return (
-        // `Stack` dùng để sắp xếp các phần tử con theo chiều dọc.
+        // Stack dùng để sắp xếp các component con theo chiều dọc
         <Stack>
-            {/* `ResultsWrapper` là một component bao bọc, chịu trách nhiệm hiển thị
-                trạng thái loading, error, hoặc thông báo không có dữ liệu.
-                Nó chỉ render `children` khi có dữ liệu hợp lệ. */}
+            {/* ResultsWrapper xử lý việc hiển thị trạng thái loading, error, hoặc khi không có dữ liệu */}
             <ResultsWrapper isLoading={loading} error={error} data={results}>
-                {/* Chỉ khi có kết quả (`results` không phải null) thì mới gọi hàm renderResults */}
                 {results && renderResults({ ...subJob, results: results })}
             </ResultsWrapper>
 
-            {/* Hiển thị thanh phân trang */}
-            {/* Điều kiện: Chỉ hiển thị khi có thông tin pagination VÀ tổng số trang > 1 */}
-            {pagination && pagination.total_pages > 1 && (
-                // `Group` với `justify="center"` để căn giữa thanh phân trang.
+            {/* 5. Hiển thị thanh điều khiển phân trang */}
+            {/* Chỉ hiển thị khi có thông tin phân trang và tổng số trang lớn hơn 1 */}
+            {paginationInfo && paginationInfo.total_pages > 1 && (
                 <Group justify="center" mt="md">
                     <Pagination
-                        total={pagination.total_pages} // Tổng số trang
-                        value={activePage}             // Trang hiện tại đang được chọn
-                        onChange={setPage}             // Hàm callback được gọi khi người dùng nhấp vào trang khác.
-                        // Nó sẽ cập nhật state `activePage`, kích hoạt lại `useEffect`.
+                        total={paginationInfo.total_pages} // Tổng số trang
+                        value={activePage}                 // Trang hiện tại
+                        onChange={setPage}                 // Callback khi người dùng đổi trang, kích hoạt lại useEffect
                     />
                 </Group>
             )}
