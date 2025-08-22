@@ -1,52 +1,30 @@
 // src/features/dashboard/components/VitalSigns.jsx
-import React, { useState, useEffect } from 'react';
-import { SimpleGrid, Loader, Alert } from '@mantine/core';
+import React from 'react';
+import { SimpleGrid } from '@mantine/core';
 import StatCard from './StatCard.jsx';
-import { IconAlertCircle } from '@tabler/icons-react';
+// 1. Import các icon chuyên nghiệp từ thư viện
+import {
+    IconActivity,
+    IconShieldLock,
+    IconClockHour4,
+    IconScan,
+    IconAlertTriangle
+} from '@tabler/icons-react';
 
-// API cần có: GET /api/statistics
-// Response ví dụ: { "active_scanners": 15, "online_proxies": 50, ... }
-
-function VitalSigns() {
-    const [stats, setStats] = useState(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
-
-    useEffect(() => {
-        const fetchStats = async () => {
-            try {
-                const response = await fetch('/api/statistics');
-                if (!response.ok) throw new Error('Không thể tải dữ liệu thống kê.');
-                const data = await response.json();
-                setStats(data);
-            } catch (e) {
-                setError(e.message);
-            } finally {
-                setLoading(false);
-            }
-        };
-        void fetchStats();
-    }, []);
-
-    if (loading) {
-        return <SimpleGrid cols={5}><Loader /></SimpleGrid>;
-    }
-
-    if (error) {
-        return <Alert color="red" title="Lỗi" icon={<IconAlertCircle />}>{error}</Alert>;
-    }
-
-    if (!stats) {
-        return null; // Không hiển thị gì nếu không có dữ liệu
-    }
-
-    // Chuyển đổi dữ liệu từ API thành định dạng mà StatCard cần
+/**
+ * Component hiển thị các chỉ số thống kê quan trọng.
+ * Dữ liệu được truyền vào thông qua props.
+ * @param {object} stats - Object chứa các dữ liệu thống kê.
+ */
+function VitalSigns({ stats }) {
+    // 2. Thay thế emoji bằng các component Icon đã import
+    // Sử dụng optional chaining (?.) và giá trị mặc định để tránh lỗi khi stats chưa có
     const statsData = [
-        { id: 1, icon: '🏃‍♂️', title: 'Scanners Hoạt động', value: stats.active_scanners },
-        { id: 2, icon: '🎭', title: 'Proxies Online', value: stats.online_proxies },
-        { id: 3, icon: '⏳', title: 'IP trong Hàng đợi', value: stats.ips_in_queue.toLocaleString() },
-        { id: 4, icon: '✅', title: 'Đã quét (24h)', value: stats.scanned_last_24h.toLocaleString() },
-        { id: 5, icon: '❌', title: 'Tỉ lệ Lỗi', value: `${stats.error_rate_percent}%`, valueColor: 'red' },
+        { id: 1, icon: IconActivity, title: 'Scanners Hoạt động', value: stats?.active_scanners || '0' },
+        { id: 2, icon: IconShieldLock, title: 'Proxies Online', value: stats?.online_proxies || '0' },
+        { id: 3, icon: IconClockHour4, title: 'IP trong Hàng đợi', value: (stats?.ips_in_queue || 0).toLocaleString() },
+        { id: 4, icon: IconScan, title: 'Đã quét (24h)', value: (stats?.scanned_last_24h || 0).toLocaleString() },
+        { id: 5, icon: IconAlertTriangle, title: 'Tỉ lệ Lỗi', value: `${stats?.error_rate_percent || 0}%`, valueColor: 'red' },
     ];
 
     return (
@@ -54,7 +32,7 @@ function VitalSigns() {
             {statsData.map((stat) => (
                 <StatCard
                     key={stat.id}
-                    icon={stat.icon}
+                    icon={stat.icon} // Giờ đây 'icon' là một component React
                     title={stat.title}
                     value={stat.value}
                     valueColor={stat.valueColor}

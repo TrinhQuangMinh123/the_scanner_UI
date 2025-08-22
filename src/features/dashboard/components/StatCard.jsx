@@ -1,10 +1,15 @@
-import { Card, Text, Group } from '@mantine/core';
+// src/features/dashboard/components/StatCard.jsx
+import { Card, Text, Group, ThemeIcon } from '@mantine/core'; // Thêm ThemeIcon
 
-function StatCard({ icon, title, value, valueColor }) {
+// Prop 'icon' giờ sẽ là một component React
+function StatCard({ icon: Icon, title, value, valueColor }) {
     return (
         <Card shadow="sm" padding="lg" radius="md" withBorder>
             <Group>
-                <Text size="xl" p="sm" bg="gray.1" radius="md">{icon}</Text>
+                {/* Dùng ThemeIcon để bọc icon, tạo nền và màu sắc đẹp hơn */}
+                <ThemeIcon color="gray" variant="light" size={38} radius="md">
+                    <Icon size={24} stroke={1.5} />
+                </ThemeIcon>
                 <div>
                     <Text c="dimmed" size="sm" fw={500}>{title}</Text>
                     <Text fw={700} size="xl" c={valueColor}>{value}</Text>
@@ -14,4 +19,4 @@ function StatCard({ icon, title, value, valueColor }) {
     );
 }
 
-export default StatCard; // <-- Thêm dòng này vào cuối file
+export default StatCard;

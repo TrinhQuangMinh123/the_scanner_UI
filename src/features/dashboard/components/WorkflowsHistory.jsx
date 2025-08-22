@@ -1,8 +1,9 @@
 // src/features/dashboard/components/WorkflowsHistory.jsx
-import React, { useState, useEffect } from 'react';
-import { Card, Title, Table, Loader, Alert, Center, Pagination, Group } from '@mantine/core';
-import { IconAlertCircle } from '@tabler/icons-react';
-import WorkflowRow from './WorkflowRow'; // Sẽ tạo ở bước 2
+import React, { useState, useEffect, useCallback } from 'react';
+import { Card, Title, Table, Loader, Alert, Center, Pagination, Group, ActionIcon } from '@mantine/core';
+import { notifications } from '@mantine/notifications';
+import { IconAlertCircle, IconRefresh } from '@tabler/icons-react';
+import WorkflowRow from './WorkflowRow';
 
 function WorkflowsHistory() {
     const [workflows, setWorkflows] = useState([]);
@@ -11,32 +12,38 @@ function WorkflowsHistory() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
-    useEffect(() => {
-        const fetchWorkflows = async () => {
-            setLoading(true);
-            setError(null);
-            try {
-                // 1. THAY ĐỔI API ENDPOINT
-                const response = await fetch(`/api/workflows?page=${activePage}&page_size=10`);
-                if (!response.ok) {
-                    throw new Error(`Lỗi HTTP: ${response.status}`);
-                }
-                const data = await response.json();
-                // Giả sử response có key là "workflows" hoặc "results"
-                setWorkflows(data.workflows || data.results || []);
-                setPagination(data.pagination || null);
-            } catch (e) {
-                setError(e.message);
-            } finally {
-                setLoading(false);
+    // 1. Gộp logic fetch vào một hàm có thể tái sử dụng, bọc trong useCallback để tối ưu
+    const fetchWorkflows = useCallback(async (page) => {
+        setLoading(true);
+        setError(null);
+        try {
+            const response = await fetch(`/api/workflows?page=${page}&page_size=10`);
+            if (!response.ok) {
+                throw new Error(`Lỗi HTTP: ${response.status}`);
             }
-        };
-        void fetchWorkflows();
-    }, [activePage]);
+            const data = await response.json();
+            setWorkflows(data.workflows || data.results || []);
+            setPagination(data.pagination || null);
+        } catch (e) {
+            setError(e.message);
+        } finally {
+            setLoading(false);
+        }
+    }, []); // Mảng rỗng đảm bảo hàm này không bị tạo lại mỗi lần render
 
-    //Định nghĩa hàm xử lý việc hủy workflow ở đây
+    // useEffect giờ chỉ gọi hàm fetch khi trang thay đổi
+    useEffect(() => {
+        void fetchWorkflows(activePage);
+    }, [activePage, fetchWorkflows]);
+
+    // Hàm xử lý việc làm mới dữ liệu
+    const handleRefresh = () => {
+        // Gọi lại API với đúng trang hiện tại
+        void fetchWorkflows(activePage);
+    };
+
+    // Hàm xử lý việc hủy workflow
     const handleCancelWorkflow = async (workflowId) => {
-        // Hỏi xác nhận trước khi xóa
         if (!window.confirm(`Bạn có chắc muốn hủy Workflow ID: ${workflowId}?`)) {
             return;
         }
@@ -47,8 +54,6 @@ function WorkflowsHistory() {
                 throw new Error('Hủy workflow thất bại.');
             }
             notifications.show({ color: 'green', title: 'Thành công', message: 'Đã hủy workflow.' });
-
-            // Cập nhật lại state để xóa workflow khỏi danh sách trên UI
             setWorkflows(current => current.filter(w => w.workflow_id !== workflowId));
 
         } catch (error) {
@@ -56,22 +61,23 @@ function WorkflowsHistory() {
         }
     };
 
-    // Hàm để cập nhật UI sau khi xóa một workflow
-    const handleWorkflowDeleted = (workflowId) => {
-        setWorkflows(current => current.filter(w => w.workflow_id !== workflowId));
-    };
-
     const rows = workflows.map(workflow => (
         <WorkflowRow
             key={workflow.workflow_id}
             workflow={workflow}
-            onCancel={handleCancelWorkflow} // <--- THÊM PROP NÀY
+            onCancel={handleCancelWorkflow}
         />
     ));
 
     return (
         <Card shadow="sm" padding="lg" radius="md" withBorder>
-            <Title order={4} mb="md">Lịch sử Luồng Quét</Title>
+            {/* 2. Thêm nút Refresh vào tiêu đề */}
+            <Group justify="space-between" mb="md">
+                <Title order={4}>Lịch sử Luồng Quét</Title>
+                <ActionIcon variant="default" onClick={handleRefresh} disabled={loading} aria-label="Làm mới danh sách">
+                    <IconRefresh size={16} />
+                </ActionIcon>
+            </Group>
 
             {loading && <Center><Loader /></Center>}
 
@@ -87,6 +93,7 @@ function WorkflowsHistory() {
                         <Table verticalSpacing="sm" striped highlightOnHover withTableBorder>
                             <Table.Thead>
                                 <Table.Tr>
+                                    <Table.Th>ID</Table.Th>
                                     <Table.Th>Workflow ID</Table.Th>
                                     <Table.Th>Mục tiêu</Table.Th>
                                     <Table.Th>Tiến trình</Table.Th>

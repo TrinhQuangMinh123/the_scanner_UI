@@ -1,8 +1,7 @@
 // src/features/dashboard/components/WorkflowRow.jsx
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Table, Group, Button, Text, Badge } from '@mantine/core';
-import { notifications } from '@mantine/notifications';
+import { Table, Group, Button, Text, Badge, Tooltip, Progress } from '@mantine/core';
 
 // Hàm để lấy màu cho badge trạng thái
 const getStatusColor = (status) => {
@@ -22,57 +21,71 @@ function WorkflowRow({ workflow, onCancel }) {
         navigate(`/jobs/${workflow.workflow_id}`);
     };
 
-    // 2. Hàm xử lý hủy job
-    const handleCancelJob = async (e) => {
-        e.stopPropagation(); // Ngăn sự kiện click của hàng được kích hoạt
+    // Rút gọn Mục tiêu và thêm Tooltip
+    const targetsDisplay = workflow.targets.length > 1
+        ? `${workflow.targets[0]} và ${workflow.targets.length - 1} mục tiêu khác`
+        : workflow.targets[0];
 
-        const confirmed = window.confirm(`Bạn có chắc muốn hủy Job ID: ${job.job_id}?`);
-        if (!confirmed) return;
+    const fullTargetsList = workflow.targets.join('\n');
 
-        try {
-            // API này cần được backend xác nhận
-            const response = await fetch(`/api/scan_jobs/${job.job_id}`, { method: 'DELETE' });
-            if (!response.ok) {
-                throw new Error('Hủy job thất bại.');
-            }
-            notifications.show({ color: 'green', title: 'Thành công', message: 'Đã hủy job thành công.' });
-            onJobDeleted(job.job_id); // Cập nhật lại UI ở component cha
-        } catch (error) {
-            notifications.show({ color: 'red', title: 'Lỗi', message: error.message });
-        }
-    };
+    // Thay thế Tiến trình bằng Progress Bar
+    const completed = workflow.completed_steps || 0;
+    const total = workflow.total_steps || 0;
+    const progressPercentage = total > 0 ? (completed / total) * 100 : 0;
+    const progressText = `${completed}/${total}`;
 
-    // Định dạng lại thời gian cho dễ đọc
     const formattedDate = new Date(workflow.created_at).toLocaleString('vi-VN');
-    const progressText = `${workflow.completed_steps || 0}/${workflow.total_steps || 0}`;
 
     return (
         <Table.Tr onClick={handleNavigate} style={{ cursor: 'pointer' }}>
+            {/* THÊM CỘT MỚI ĐỂ HIỂN THỊ ID SỐ */}
+            <Table.Td>
+                <Text ff="monospace" c="dimmed" size="sm">
+                    #{workflow.id}
+                </Text>
+            </Table.Td>
+
+            {/* Cột Workflow ID (UUID rút gọn) */}
             <Table.Td>
                 <Text ff="monospace" c="dimmed" size="xs">{workflow.workflow_id.split('-').pop()}</Text>
             </Table.Td>
+
+            {/* Cột Mục tiêu */}
             <Table.Td>
-                <Text fw={500} truncate="end">{workflow.targets.join(', ')}</Text>
+                <Tooltip label={<Text style={{ whiteSpace: 'pre-line' }}>{fullTargetsList}</Text>} withArrow multiline>
+                    <Text fw={500} truncate="end">{targetsDisplay}</Text>
+                </Tooltip>
             </Table.Td>
+
+            {/* Cột Tiến trình */}
             <Table.Td>
-                <Text size="sm" c="dimmed">{progressText}</Text>
+                <Tooltip label={progressText} withArrow>
+                    <Progress value={progressPercentage} size="lg" radius="sm" />
+                </Tooltip>
             </Table.Td>
+
+            {/* Cột Trạng thái */}
             <Table.Td>
-                <Badge color={getStatusColor(workflow.status)}>{workflow.status}</Badge>
+                <Badge color={getStatusColor(workflow.status)} variant="light">
+                    {workflow.status}
+                </Badge>
             </Table.Td>
+
+            {/* Cột Thời gian tạo */}
             <Table.Td>
                 <Text size="sm" c="dimmed">{formattedDate}</Text>
             </Table.Td>
+
+            {/* Cột Hành động */}
             <Table.Td>
                 <Group gap="xs" justify="flex-end">
-                    {/* 3. Gọi hàm `onCancel` từ prop khi nhấn nút */}
                     <Button
-                        variant="light"
+                        variant="subtle"
                         color="red"
                         size="compact-sm"
                         onClick={(e) => {
-                            e.stopPropagation(); // Ngăn việc điều hướng trang
-                            onCancel(workflow.workflow_id); // Gọi hàm của cha và truyền ID lên
+                            e.stopPropagation(); // Ngăn sự kiện click của cả hàng
+                            onCancel(workflow.workflow_id);
                         }}
                     >
                         Hủy

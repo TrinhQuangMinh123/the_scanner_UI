@@ -1,7 +1,7 @@
 // src/features/dashboard/components/Header.jsx
 import React, { useState } from 'react';
-// Thêm Menu vào import
-import { Group, Title, Text, Button, Menu } from '@mantine/core';
+import { Group, Title, Text, Button, Paper, Image, ActionIcon } from '@mantine/core';
+import { IconBell } from '@tabler/icons-react'; // Import icon chuông
 import WorkflowBuilderModal from './WorkflowBuilderModal';
 
 function Header() {
@@ -14,35 +14,39 @@ function Header() {
                 onClose={() => setModalOpened(false)}
             />
 
-            <Group justify="space-between">
-                <div>
-                    <Title order={1}>The Scanner 📡</Title>
-                    <Text c="dimmed">Dashboard giám sát và điều khiển</Text>
-                </div>
+            {/* 1. Vỏ bọc Header với nền sáng và bóng mờ */}
+            <Paper shadow="xs" p="md" radius="md" withBorder style={{ backgroundColor: '#F8F9FA' }}>
+                <Group justify="space-between">
 
-                <Group>
-                    {/* Menu mới cho tài liệu API */}
-                    <Menu shadow="md" width={200}>
-                        <Menu.Target>
-                            <Button variant="default">Tài liệu API</Button>
-                        </Menu.Target>
-                        <Menu.Dropdown>
-                            <Menu.Label>Interactive Documentation</Menu.Label>
-                            {/* Các link này giờ sẽ hoạt động nhờ có proxy */}
-                            <Menu.Item component="a" href="/docs" target="_blank">
-                                Swagger UI
-                            </Menu.Item>
-                            <Menu.Item component="a" href="/redoc" target="_blank">
-                                ReDoc
-                            </Menu.Item>
-                        </Menu.Dropdown>
-                    </Menu>
+                    {/* Khu vực bên trái (Thương hiệu) */}
+                    <Group>
+                        <Image
+                            src="/logo_insectlab.jpg" // Trỏ đến file trong thư mục public
+                            h={40}
+                            w="auto"
+                        />
+                        <div>
+                            {/* Tiêu đề được làm lớn và đậm hơn */}
+                            <Title order={3}>The Scanner</Title>
+                            <Text size="sm" c="dimmed">Dashboard giám sát và điều khiển</Text>
+                        </div>
+                    </Group>
 
-                    <Button onClick={() => setModalOpened(true)} size="sm">
-                        + Tạo Luồng Quét Mới
-                    </Button>
+                    {/* Khu vực bên phải (Hành động) */}
+                    <Group>
+                        <Button variant="default" component="a" href="/docs" target="_blank">
+                            Tài liệu API
+                        </Button>
+                        <ActionIcon variant="default" size="lg" radius="md">
+                            <IconBell size={20} stroke={1.5} />
+                        </ActionIcon>
+                        <Button onClick={() => setModalOpened(true)}>
+                            + Tạo Luồng Quét Mới
+                        </Button>
+                    </Group>
+
                 </Group>
-            </Group>
+            </Paper>
         </>
     );
 }

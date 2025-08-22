@@ -16,22 +16,20 @@ import {
 import { notifications } from '@mantine/notifications';
 import { IconAlertCircle, IconCheck } from '@tabler/icons-react';
 import { useIpPoolStore } from '../../../stores/ipPoolStore';
+import { cacheManager } from '../../../utils/cacheManager';
 import AvailableScans from './AvailableScans';
 import WorkflowSteps from './WorkflowSteps';
 
+const CACHE_DURATION_MINUTES = 15;
+
 function WorkflowBuilderModal({ opened, onClose }) {
-    const navigate = useNavigate(); // KHỞI TẠO hook
+    const navigate = useNavigate();
     const poolIps = useIpPoolStore((state) => state.ips);
 
-    // State lưu trữ dữ liệu form
+    // --- STATE ĐÃ ĐƯỢC TINH GỌN ---
     const [targets, setTargets] = useState('');
     const [workflow, setWorkflow] = useState([]);
     const [selectedCountry, setSelectedCountry] = useState('AUTO');
-
-    // --- STATE MỚI ---
-    const [selectedProfile, setSelectedProfile] = useState(null); // Lưu profile VPN cụ thể được chọn
-    const [availableProfiles, setAvailableProfiles] = useState([]); // Lưu danh sách profile của quốc gia đã chọn
-    const [isLoadingProfiles, setIsLoadingProfiles] = useState(false); // Trạng thái tải cho profile
 
     // State cho dữ liệu tải từ API
     const [scanTemplates, setScanTemplates] = useState([]);
@@ -43,12 +41,19 @@ function WorkflowBuilderModal({ opened, onClose }) {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState(null);
 
-    const [threads, setThreads] = useState(10); // Giá trị mặc định là 10
-
+    // useEffect để tải tools và countries
     useEffect(() => {
         if (opened) {
             const fetchInitialData = async () => {
-                // Sửa lại: Dùng đúng các state setter
+                const cachedTools = cacheManager.get('api_tools', CACHE_DURATION_MINUTES);
+                const cachedCountries = cacheManager.get('api_countries', CACHE_DURATION_MINUTES);
+
+                if (cachedTools && cachedCountries) {
+                    setScanTemplates(cachedTools);
+                    setAvailableCountries(cachedCountries);
+                    return;
+                }
+
                 setIsLoadingTools(true);
                 setIsLoadingCountries(true);
                 setError(null);
@@ -65,22 +70,25 @@ function WorkflowBuilderModal({ opened, onClose }) {
                     const toolsData = await toolsRes.json();
                     const countriesData = await countriesRes.json();
 
-                    // Sửa lại: Truy cập vào key "tools"
-                    setScanTemplates(toolsData.tools || []);
-
-                    // Sửa lại: Dùng đúng state setter
-                    // Giả sử response là { countries: [{ code, ... }] } theo code của bạn
+                    const tools = toolsData.tools || [];
                     const countryList = countriesData.countries || [];
-                    const formattedCountries = countryList.map(country => ({
-                        value: country.code,
-                        label: country.code
+
+                    const countries = countryList.map(c => ({
+                        value: c.code,
+                        label: `${c.code} (${c.count} VPNs)`
                     }));
-                    setAvailableCountries(formattedCountries);
+
+                    const countriesWithAuto = [{ value: 'AUTO', label: 'Tự động (Ngẫu nhiên)' }, ...countries];
+
+                    setScanTemplates(tools);
+                    setAvailableCountries(countriesWithAuto);
+
+                    cacheManager.set('api_tools', tools, CACHE_DURATION_MINUTES);
+                    cacheManager.set('api_countries', countriesWithAuto, CACHE_DURATION_MINUTES);
 
                 } catch (e) {
                     setError(e.message);
                 } finally {
-                    // Sửa lại: Dùng đúng các state setter
                     setIsLoadingTools(false);
                     setIsLoadingCountries(false);
                 }
@@ -89,65 +97,26 @@ function WorkflowBuilderModal({ opened, onClose }) {
         }
     }, [opened]);
 
-    useEffect(() => {
-        // Nếu không chọn quốc gia cụ thể, hoặc chọn AUTO, thì reset danh sách profile
-        if (!selectedCountry || selectedCountry === 'AUTO') {
-            setAvailableProfiles([]);
-            setSelectedProfile(null); // Reset luôn lựa chọn profile cũ
-            return;
-        }
+    // --- ĐÃ XÓA useEffect thứ hai (fetch profiles) ---
 
-        const fetchProfiles = async () => {
-            setIsLoadingProfiles(true);
-            try {
-                const response = await fetch(`/api/vpns?country=${selectedCountry}`);
-                if (!response.ok) throw new Error('Không thể tải danh sách profile VPN.');
-                const data = await response.json();
-                // 1. Truy cập vào mảng 'vpns' bên trong object data
-                const vpnList = data.vpns || [];
-
-                // 2. Map qua mảng vpnList mới
-                const formattedProfiles = vpnList.map(p => ({
-                    value: p.filename,
-                    label: p.hostname // Dùng hostname làm nhãn vì response không có ip riêng
-                }));
-                setAvailableProfiles(formattedProfiles);
-            } catch (error) {
-                console.error(error);
-                setAvailableProfiles([]);
-            } finally {
-                setIsLoadingProfiles(false);
-            }
-        };
-
-        void fetchProfiles();
-
-    }, [selectedCountry]); // Phụ thuộc vào selectedCountry
-
-    // Hàm để nhập danh sách từ IP Pool vào ô targets
     const handleImportFromPool = () => {
         const ipListString = poolIps.map(ip => ip.target).join('\n');
         setTargets(ipListString);
     };
 
     const handleSubmit = async () => {
+        setError(null);
         const targetList = targets.split('\n').filter(t => t.trim() !== '');
+
         if (targetList.length === 0 || workflow.length === 0) {
-            notifications.show({
-                color: 'orange',
-                title: 'Thiếu thông tin',
-                message: 'Vui lòng nhập Mục tiêu và thêm ít nhất một bước quét.',
-            });
+            setError('Vui lòng nhập Mục tiêu và thêm ít nhất một bước quét.');
             return;
         }
 
-        setIsSubmitting(true); // Bắt đầu trạng thái "đang gửi"
-
+        setIsSubmitting(true);
         const finalWorkflow = {
             targets: targetList,
             country: selectedCountry,
-            vpn_profile: selectedProfile,
-            threads: threads, // Thêm số luồng vào request
             steps: workflow.map(step => ({ tool_id: step.type, params: step.params })),
         };
 
@@ -164,7 +133,6 @@ function WorkflowBuilderModal({ opened, onClose }) {
             }
 
             const masterJob = await response.json();
-
             notifications.show({
                 color: 'green',
                 title: 'Thành công!',
@@ -173,27 +141,20 @@ function WorkflowBuilderModal({ opened, onClose }) {
             });
 
             onClose();
-            navigate(`/jobs/${masterJob.workflow_id}`); // Điều hướng đến trang chi tiết
-
+            navigate(`/jobs/${masterJob.workflow_id}`);
         } catch (e) {
-            notifications.show({
-                color: 'red',
-                title: 'Thất bại',
-                message: e.message,
-                icon: <IconAlertCircle size={18} />,
-            });
+            setError(e.message);
         } finally {
-            setIsSubmitting(false); // Kết thúc trạng thái "đang gửi"
+            setIsSubmitting(false);
         }
     };
 
     const addScanToWorkflow = (toolName) => {
-        // Logic thêm một bước scan mới vào workflow dựa trên toolName
         const newStep = {
             id: `${toolName}-${Date.now()}`,
-            type: toolName, // Dùng toolName làm 'type'
-            name: toolName, // Và cũng là 'name'
-            params: {}, // Khởi tạo params rỗng
+            type: toolName,
+            name: toolName,
+            params: {},
         };
         setWorkflow(currentWorkflow => [...currentWorkflow, newStep]);
     };
@@ -214,10 +175,8 @@ function WorkflowBuilderModal({ opened, onClose }) {
 
     return (
         <Modal opened={opened} onClose={onClose} title="Xây dựng Luồng quét" size="xl">
-            {/* Form sẽ luôn hiển thị */}
             <Stack gap="xl">
                 <div>
-                    {/* Thay TextInput bằng Textarea */}
                     <Textarea
                         label="Mục tiêu"
                         description="Nhập nhiều mục tiêu, mỗi mục tiêu trên một dòng."
@@ -228,7 +187,6 @@ function WorkflowBuilderModal({ opened, onClose }) {
                         value={targets}
                         onChange={(e) => setTargets(e.currentTarget.value)}
                     />
-                    {/* Nút mới để liên kết với IP Pool */}
                     <Button
                         variant="light"
                         size="xs"
@@ -244,35 +202,15 @@ function WorkflowBuilderModal({ opened, onClose }) {
                     placeholder="Chọn một quốc gia"
                     data={availableCountries}
                     value={selectedCountry}
-                    onChange={(value) => {
-                        setSelectedCountry(value);
-                        // Khi đổi quốc gia, reset lựa chọn profile
-                        setSelectedProfile(null);
-                    }}
+                    onChange={setSelectedCountry} // Logic onChange giờ đơn giản hơn
                     disabled={isLoadingCountries}
                     rightSection={isLoadingCountries ? <Loader size="xs" /> : null}
                 />
 
-                {/* Ô chọn IP/Profile cụ thể (component mới) */}
-                {/* Chỉ hiển thị khi một quốc gia được chọn và không phải là AUTO */}
-                {(selectedCountry && selectedCountry !== 'AUTO') && (
-                        <Select
-                            label="Chọn Profile VPN cụ thể (Tùy chọn)"
-                            placeholder={isLoadingProfiles ? "Đang tải profile..." : "Mặc định (ngẫu nhiên trong quốc gia)"}
-                            data={availableProfiles}
-                            value={selectedProfile}
-                            onChange={setSelectedProfile}
-                            disabled={isLoadingProfiles}
-                            rightSection={isLoadingProfiles ? <Loader size="xs" /> : null}
-                            clearable
-                            mt="md" // Thêm một chút khoảng cách
-                        />
-                    )}
-
+                {/* --- ĐÃ XÓA ô Select thứ hai (chọn profile) --- */}
 
                 <Grid>
                     <Grid.Col span={{ base: 12, md: 5 }}>
-                        {/* 5. Truyền trạng thái tải tools xuống component con */}
                         <AvailableScans
                             scanTemplates={scanTemplates}
                             isLoading={isLoadingTools}
@@ -285,31 +223,27 @@ function WorkflowBuilderModal({ opened, onClose }) {
                             setSteps={setWorkflow}
                             onRemove={removeStep}
                             onParamsChange={handleParamsChange}
-                            scanTemplates={scanTemplates} // Truyền cả vào đây để `ScanStep` có thể dùng
+                            scanTemplates={scanTemplates}
                         />
                     </Grid.Col>
                 </Grid>
 
-                {/* Hiển thị lỗi chung nếu có */}
-                {error && <Alert color="red" title="Lỗi">{error}</Alert>}
+                {error && (
+                    <Alert
+                        variant="light"
+                        color="red"
+                        title="Lỗi"
+                        icon={<IconAlertCircle />}
+                        onClose={() => setError(null)}
+                        withCloseButton
+                    >
+                        {error}
+                    </Alert>
+                )}
 
-                <div>
-                    <Text fw={500} size="sm">
-                        Số luồng đồng thời (Threads): <Text component="span" fw={700}>{threads}</Text>
-                    </Text>
-                    <Text size="xs" c="dimmed">Tăng số luồng có thể tăng tốc độ quét nhưng tốn nhiều tài nguyên hơn.</Text>
-                    <Slider
-                        value={threads}
-                        onChange={setThreads}
-                        min={1}
-                        max={100} // Giới hạn tối đa là 100
-                        mt="xs"
-                    />
-                </div>
-
-                    <Button onClick={handleSubmit} loading={isSubmitting} size="md">
-                        Bắt đầu Luồng quét
-                    </Button>
+                <Button onClick={handleSubmit} loading={isSubmitting} size="md">
+                    Bắt đầu Luồng quét
+                </Button>
             </Stack>
         </Modal>
     );
