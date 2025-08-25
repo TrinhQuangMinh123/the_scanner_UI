@@ -1,7 +1,6 @@
 // src/features/dashboard/components/Header.jsx
 import React, { useState } from 'react';
 import { Group, Title, Text, Button, Paper, Image, ActionIcon } from '@mantine/core';
-import { IconBell } from '@tabler/icons-react'; // Import icon chuông
 import WorkflowBuilderModal from './WorkflowBuilderModal';
 
 function Header() {
@@ -34,9 +33,6 @@ function Header() {
 
                     {/* Khu vực bên phải (Hành động) */}
                     <Group>
-                        <ActionIcon variant="default" size="lg" radius="md">
-                            <IconBell size={20} stroke={1.5} />
-                        </ActionIcon>
                         <Button onClick={() => setModalOpened(true)}>
                             + Tạo Luồng Quét Mới
                         </Button>

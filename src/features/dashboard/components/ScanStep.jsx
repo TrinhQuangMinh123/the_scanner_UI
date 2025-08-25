@@ -1,5 +1,4 @@
-// src/features/dashboard/components/ScanStep.jsx
-import React, { useState } from 'react';
+import React from 'react';
 import {
     Accordion,
     TextInput,
@@ -11,12 +10,13 @@ import {
     Text,
     Box,
     NumberInput,
-    Combobox,
-    useCombobox,
-    Button
+    Button,
+    TagsInput // 1. `TagsInput` is added, `Combobox` and `useCombobox` are removed.
 } from '@mantine/core';
 import { IconGripVertical, IconTrash } from '@tabler/icons-react';
 
+// --- Component FormField được tái cấu trúc hoàn chỉnh ---
+// Component FormField giờ đã đơn giản hơn
 function FormField({ field, params, handleParamChange }) {
     const key = field.name;
     const otherProps = {
@@ -24,11 +24,7 @@ function FormField({ field, params, handleParamChange }) {
         placeholder: field.placeholder,
     };
 
-    // State và hook cho Combobox được khai báo ở cấp cao nhất của component
-    const [searchValue, setSearchValue] = useState('');
-
-    // Logic chung cho tất cả các loại field, trừ Combobox sẽ có logic riêng
-    // (Lưu ý: hook useCombobox sẽ được gọi bên trong case 'Combobox' để tuân thủ luật của hooks)
+    // The `searchValue` state is no longer needed and has been removed.
 
     switch (field.component) {
         case 'TextInput':
@@ -53,57 +49,17 @@ function FormField({ field, params, handleParamChange }) {
                 </React.Fragment>
             );
 
-        case 'Combobox':
-            const combobox = useCombobox({
-                onOptionSubmit: (optionValue) => {
-                    const currentValue = params[field.name] || '';
-                    const parts = currentValue.split(',').map(p => p.trim());
-
-                    // Thay thế phần tử cuối cùng (từ khóa đang gõ) bằng giá trị đã chọn
-                    parts[parts.length - 1] = optionValue;
-
-                    handleParamChange(field.name, parts.join(', '));
-                    combobox.closeDropdown();
-                },
-            });
-
-            // --- LOGIC LỌC MỚI ---
-            // 1. Tách chuỗi nhập liệu và lấy ra từ khóa cuối cùng để tìm kiếm
-            const currentInputValue = params[field.name] || '';
-            const searchParts = currentInputValue.split(',');
-            const currentSearchTerm = searchParts[searchParts.length - 1].trim();
-
-            // 2. Lọc gợi ý dựa trên từ khóa cuối cùng đó
-            const filteredOptions = field.data.filter((item) =>
-                item.toLowerCase().includes(currentSearchTerm.toLowerCase())
-            );
-
-            const options = filteredOptions.map((item) => (
-                <Combobox.Option value={item} key={item}>{item}</Combobox.Option>
-            ));
-
+        // 2. The `TagsInput` case is now the correct implementation.
+        case 'TagsInput':
             return (
-                <Combobox store={combobox} withinPortal={false} key={key}>
-                    <Combobox.Target>
-                        <TextInput
-                            {...otherProps}
-                            value={currentInputValue} // Giá trị vẫn là chuỗi đầy đủ
-                            onChange={(event) => {
-                                handleParamChange(field.name, event.currentTarget.value);
-                                combobox.openDropdown();
-                                combobox.updateSelectedOptionIndex();
-                            }}
-                            onClick={() => combobox.openDropdown()}
-                            onFocus={() => combobox.openDropdown()}
-                            onBlur={() => combobox.closeDropdown()}
-                        />
-                    </Combobox.Target>
-                    <Combobox.Dropdown>
-                        <Combobox.Options>
-                            {options.length > 0 ? options : <Combobox.Empty>Không tìm thấy...</Combobox.Empty>}
-                        </Combobox.Options>
-                    </Combobox.Dropdown>
-                </Combobox>
+                <TagsInput
+                    key={key}
+                    {...otherProps}
+                    data={field.data} // Autocomplete suggestion list
+                    value={params[field.name] || []} // Value is always an array
+                    onChange={(value) => handleParamChange(field.name, value)} // onChange directly returns the new array
+                    clearable
+                />
             );
 
         case 'Switch':
@@ -161,13 +117,14 @@ function FormField({ field, params, handleParamChange }) {
     }
 }
 
+// --- Component ScanStep chính (không thay đổi) ---
 function ScanStep({ step, onRemove, onParamsChange, listeners, style, scanTemplates }) {
     const template = scanTemplates.find(t => t.id === step.type);
 
     if (!template) {
         return (
             <Box style={style} bg="red.1" p="xs" radius="sm" mb="xs">
-                <Text c="red">Lỗi: Không tìm thấy cấu hình cho loại scan "{step.type}"</Text>
+                <Text c="red">Error: Configuration not found for scan type "{step.type}"</Text>
             </Box>
         );
     }
@@ -190,7 +147,10 @@ function ScanStep({ step, onRemove, onParamsChange, listeners, style, scanTempla
                                     <FormField
                                         field={field}
                                         params={step.params}
-                                        handleParamChange={(paramName, value) => onParamsChange(step.id, paramName, value)}
+                                        handleParamChange={(paramName, value) => {
+                                            console.log('✅ ScanStep is trying to send:', { stepId: step.id, paramName, value });
+                                            onParamsChange(step.id, paramName, value);
+                                        }}
                                     />
                                 </Box>
                             ))}
