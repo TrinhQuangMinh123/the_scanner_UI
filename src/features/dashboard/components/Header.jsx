@@ -34,9 +34,6 @@ function Header() {
 
                     {/* Khu vực bên phải (Hành động) */}
                     <Group>
-                        <Button variant="default" component="a" href="/docs" target="_blank">
-                            Tài liệu API
-                        </Button>
                         <ActionIcon variant="default" size="lg" radius="md">
                             <IconBell size={20} stroke={1.5} />
                         </ActionIcon>
