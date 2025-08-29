@@ -1,23 +1,24 @@
 // src/pages/JobDetailPage.jsx
-import React, { useState, useEffect, useRef, useCallback  } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Title, Text, Card, Stack, Group, Button, Progress, Table, Badge, Tabs, Alert, Loader, Center, Grid, Code, Tooltip, SegmentedControl } from '@mantine/core';
-import { IconAlertCircle } from '@tabler/icons-react';
-import { IconRefresh } from '@tabler/icons-react';
+import {
+    Title, Text, Card, Stack, Group, Button, Progress, Table, Badge, Tabs,
+    Alert, Loader, Center, Grid, Code, Tooltip, SegmentedControl
+} from '@mantine/core';
+import { IconAlertCircle, IconRefresh } from '@tabler/icons-react';
 
-// Giả định các component con này đã được tạo và import
 import ResultViewer from '../features/jobs/results/ResultViewer';
 import TargetSummaryCard from '../features/jobs/summary/TargetSummaryCard';
 
 const POLLING_INTERVAL = 5000; // 5 giây
 
-// --- Helper Functions ---
-
+// --- Các hàm Helper (Không thay đổi) ---
 const getStatusColor = (status) => {
     switch (status) {
         case 'completed': return 'green';
         case 'running': return 'blue';
         case 'failed': return 'red';
+        case 'cancelled': return 'grape';
         case 'submitted': return 'gray';
         default: return 'gray';
     }
@@ -27,116 +28,108 @@ const OptionsDisplay = ({ options }) => {
     if (!options || Object.keys(options).length === 0) {
         return <Text size="xs" c="dimmed">Mặc định</Text>;
     }
-    const params = Object.entries(options).map(([key, value]) => `${key}: ${value}`).join(', ');
+    const params = Object.entries(options).map(([key, value]) => `${key}: ${String(value)}`).join(', ');
     return (
-        <Tooltip label={params} position="top-start" withArrow>
+        <Tooltip label={params} position="top-start" withArrow multiline w={250}>
             <Text size="xs" c="dimmed" truncate="end" style={{ maxWidth: 150 }}>{params}</Text>
         </Tooltip>
     );
 };
 
-
-// --- Main Component ---
-
+// --- Component Chính (Đã được tái cấu trúc) ---
 function JobDetailPage() {
-    // === STATE MANAGEMENT ===
+    // --- STATE MANAGEMENT ---
     const { jobId: workflowId } = useParams();
-    const [viewMode, setViewMode] = useState('summary'); // 'summary' hoặc 'tool'
-
+    const [viewMode, setViewMode] = useState('summary');
     const [statusData, setStatusData] = useState(null);
     const [summaryData, setSummaryData] = useState(null);
-
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const intervalRef = useRef(null);
+    const [isRefreshing, setIsRefreshing] = useState(false);
 
-    const [isRefreshing, setIsRefreshing] = useState(false); // State mới cho nút refresh
+    // --- LOGIC FETCH DỮ LIỆU ---
 
-    //Gộp logic fetch vào một hàm useCallback để có thể tái sử dụng
-    const handleRefresh = useCallback(async () => {
-        setIsRefreshing(true); // Bật trạng thái loading của nút
-        setError(null);
+    // Hàm fetch status, dùng cho cả polling và refresh
+    const fetchStatus = useCallback(async () => {
         try {
-            // Dùng Promise.all để gọi lại cả hai API
-            await Promise.all([
-                (async () => {
-                    const statusRes = await fetch(`/api/workflows/${workflowId}/status`);
-                    if (!statusRes.ok) throw new Error('Lỗi tải trạng thái.');
-                    const status = await statusRes.json();
-                    setStatusData(status);
-                })(),
-                (async () => {
-                    const summaryRes = await fetch(`/api/workflows/${workflowId}/summary`);
-                    if (!summaryRes.ok) throw new Error('Lỗi tải tóm tắt.');
-                    const summary = await summaryRes.json();
-                    setSummaryData(summary);
-                })(),
-            ]);
+            const response = await fetch(`/api/workflows/${workflowId}/status`);
+            if (!response.ok) throw new Error('Không thể tải trạng thái workflow.');
+            const data = await response.json();
+            setStatusData(data);
         } catch (e) {
             setError(e.message);
-        } finally {
-            setIsRefreshing(false); // Tắt trạng thái loading
+            // Không set statusData về null để tránh giao diện bị mất đột ngột
         }
-    }, [workflowId]); // Phụ thuộc vào workflowId
-
-    // ===DATA FETCHING & POLLING ===
-    useEffect(() => {
-        const fetchStatusData = async () => {
-            try {
-                const response = await fetch(`/api/workflows/${workflowId}/status`);
-                if (!response.ok) throw new Error('Không thể tải trạng thái workflow.');
-                const data = await response.json();
-                setStatusData(data);
-
-                const finalStatus = ['completed', 'failed', 'cancelled'];
-                if (finalStatus.includes(data.workflow.status)) {
-                    clearInterval(intervalRef.current);
-                }
-            } catch (e) {
-                setError(e.message);
-                clearInterval(intervalRef.current);
-            }
-        };
-
-        const fetchInitialData = async () => {
-            setLoading(true);
-            try {
-                // Gọi cả status và summary lần đầu
-                await Promise.all([
-                    fetchStatusData(),
-                    (async () => {
-                        const summaryRes = await fetch(`/api/workflows/${workflowId}/summary`);
-                        if (!summaryRes.ok) throw new Error('Không thể tải dữ liệu tóm tắt.');
-                        const summary = await summaryRes.json();
-                        setSummaryData(summary);
-                    })()
-                ]);
-            } catch(e) {
-                setError(e.message);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        void fetchInitialData(); // Gọi lần đầu để lấy tất cả
-        intervalRef.current = setInterval(fetchStatusData, POLLING_INTERVAL); // Sau đó chỉ polling status
-        return () => clearInterval(intervalRef.current);
     }, [workflowId]);
 
-    // === 3. RENDER LOGIC ===
+    // Hàm fetch summary, dùng cho lần đầu và refresh
+    const fetchSummary = useCallback(async () => {
+        try {
+            const response = await fetch(`/api/workflows/${workflowId}/summary`);
+            if (!response.ok) throw new Error('Không thể tải dữ liệu tóm tắt.');
+            const data = await response.json();
+            setSummaryData(data);
+        } catch (e) {
+            setError(e.message);
+        }
+    }, [workflowId]);
+
+    // === HOOK 1: LẤY DỮ LIỆU BAN ĐẦU ===
+    // Chỉ chạy một lần khi component được mount
+    useEffect(() => {
+        const fetchInitialData = async () => {
+            setLoading(true);
+            setError(null);
+            await Promise.all([fetchStatus(), fetchSummary()]);
+            setLoading(false);
+        };
+        void fetchInitialData();
+    }, [fetchStatus, fetchSummary]); // Phụ thuộc vào các hàm đã được useCallback
+
+    // === HOOK 2: QUẢN LÝ POLLING TỰ ĐỘNG ===
+    // Hook này sẽ chạy mỗi khi statusData thay đổi
+    useEffect(() => {
+        // Điều kiện để dừng polling
+        const isJobRunning = statusData && !['completed', 'failed', 'cancelled'].includes(statusData.workflow.status);
+
+        if (!isJobRunning) {
+            return; // Dừng lại, không tạo interval mới
+        }
+
+        // Nếu job đang chạy, tạo một interval mới
+        const intervalId = setInterval(() => {
+            void fetchStatus();
+        }, POLLING_INTERVAL);
+
+        // Hàm cleanup: sẽ được gọi khi statusData thay đổi hoặc component unmount
+        // Nó sẽ xóa interval cũ trước khi tạo cái mới (nếu cần)
+        return () => clearInterval(intervalId);
+
+    }, [statusData, fetchStatus]); // Phụ thuộc vào statusData và hàm fetchStatus
+
+    // Hàm xử lý cho nút Refresh
+    const handleRefresh = useCallback(async () => {
+        setIsRefreshing(true);
+        setError(null);
+        // Gọi lại cả hai API để có dữ liệu mới nhất
+        await Promise.all([fetchStatus(), fetchSummary()]);
+        setIsRefreshing(false);
+    }, [fetchStatus, fetchSummary]);
+
+
+    // --- RENDER LOGIC ---
     if (loading) return <Center><Loader size="lg" /></Center>;
-    if (error) return <Alert color="red" title="Lỗi">{error}</Alert>;
+    if (error && !statusData) return <Alert color="red" title="Lỗi nghiêm trọng">{error}</Alert>;
     if (!statusData) return <Text>Không có dữ liệu cho workflow này.</Text>;
 
-    // Dữ liệu chính cho UI sẽ lấy từ statusData
     const { workflow, sub_jobs, progress } = statusData;
     const completedSubJobs = sub_jobs.filter(job => job.status === 'completed');
 
     return (
         <Stack gap="xl">
+            {/* Header và các nút điều khiển */}
             <Group justify="space-between">
                 <Title order={1}>Chi tiết Luồng quét</Title>
-                {/* 2. Thêm nút "Làm mới" vào đây */}
                 <Group>
                     <Button
                         leftSection={<IconRefresh size={16} />}
@@ -152,7 +145,10 @@ function JobDetailPage() {
                 </Group>
             </Group>
 
-            {/* Thẻ thông tin tổng quan (dữ liệu từ statusData) */}
+            {/* Thông báo lỗi không nghiêm trọng (khi fetch thất bại nhưng vẫn có dữ liệu cũ) */}
+            {error && <Alert color="orange" title="Cảnh báo" icon={<IconAlertCircle />}>Không thể cập nhật dữ liệu mới nhất. Lỗi: {error}</Alert>}
+
+            {/* Card tổng quan */}
             <Card withBorder p="md" radius="md">
                 <Title order={3} mb="sm">Tổng quan</Title>
                 <Grid>
@@ -165,7 +161,7 @@ function JobDetailPage() {
                         </Group>
                     </Grid.Col>
                     <Grid.Col span={{ base: 12, md: 6 }}>
-                        <Text><b>VPN:</b> {workflow.vpn_assignment?.country || 'N/A'} ({workflow.vpn_assignment?.hostname})</Text>
+                        <Text><b>VPN:</b> {workflow.vpn_assignment?.country?.toUpperCase() || 'N/A'} ({workflow.vpn_assignment?.hostname || 'N/A'})</Text>
                         <Text mt="xs"><b>Thời gian tạo:</b> {new Date(workflow.created_at).toLocaleString('vi-VN')}</Text>
                         <Text mt="xs"><b>Cập nhật lần cuối:</b> {new Date(workflow.updated_at).toLocaleString('vi-VN')}</Text>
                     </Grid.Col>
@@ -193,7 +189,7 @@ function JobDetailPage() {
             {viewMode === 'summary' && (
                 <Stack>
                     {summaryData ? (
-                        summaryData.summary.map(summary => ( // <-- Sửa lại thành .summary
+                        summaryData.summary.map(summary => (
                             <TargetSummaryCard key={summary.target} summary={summary} />
                         ))
                     ) : (
@@ -207,35 +203,37 @@ function JobDetailPage() {
                     {/* Bảng trạng thái các bước con */}
                     <Card withBorder p="md" radius="md">
                         <Title order={4} mb="md">Các bước thực thi</Title>
-                        <Table>
-                            <Table.Thead>
-                                <Table.Tr>
-                                    <Table.Th>Bước</Table.Th>
-                                    <Table.Th>Công cụ</Table.Th>
-                                    <Table.Th>Cấu hình</Table.Th>
-                                    <Table.Th>Trạng thái</Table.Th>
-                                </Table.Tr>
-                            </Table.Thead>
-                            <Table.Tbody>
-                                {sub_jobs.map(job => (
-                                    <Table.Tr key={job.job_id}>
-                                        <Table.Td>{job.step_order}</Table.Td>
-                                        <Table.Td>{job.tool}</Table.Td>
-                                        <Table.Td><OptionsDisplay options={job.options} /></Table.Td>
-                                        <Table.Td>
-                                            <Group gap="xs">
-                                                <Badge color={getStatusColor(job.status)}>{job.status}</Badge>
-                                                {job.error_message &&
-                                                    <Tooltip label={job.error_message} withArrow multiline w={300}>
-                                                        <IconAlertCircle size={16} color="red" />
-                                                    </Tooltip>
-                                                }
-                                            </Group>
-                                        </Table.Td>
+                        <Table.ScrollContainer minWidth={500}>
+                            <Table>
+                                <Table.Thead>
+                                    <Table.Tr>
+                                        <Table.Th>Bước</Table.Th>
+                                        <Table.Th>Công cụ</Table.Th>
+                                        <Table.Th>Cấu hình</Table.Th>
+                                        <Table.Th>Trạng thái</Table.Th>
                                     </Table.Tr>
-                                ))}
-                            </Table.Tbody>
-                        </Table>
+                                </Table.Thead>
+                                <Table.Tbody>
+                                    {sub_jobs.map(job => (
+                                        <Table.Tr key={job.job_id}>
+                                            <Table.Td>{job.step_order}</Table.Td>
+                                            <Table.Td>{job.tool}</Table.Td>
+                                            <Table.Td><OptionsDisplay options={job.options} /></Table.Td>
+                                            <Table.Td>
+                                                <Group gap="xs" wrap="nowrap">
+                                                    <Badge color={getStatusColor(job.status)}>{job.status}</Badge>
+                                                    {job.error_message &&
+                                                        <Tooltip label={job.error_message} withArrow multiline w={300}>
+                                                            <IconAlertCircle size={16} color="var(--mantine-color-red-6)" />
+                                                        </Tooltip>
+                                                    }
+                                                </Group>
+                                            </Table.Td>
+                                        </Table.Tr>
+                                    ))}
+                                </Table.Tbody>
+                            </Table>
+                        </Table.ScrollContainer>
                     </Card>
 
                     {/* Các Tab kết quả chi tiết */}
