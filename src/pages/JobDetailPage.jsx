@@ -36,7 +36,7 @@ const OptionsDisplay = ({ options }) => {
     );
 };
 
-// --- Component Chính (Đã được tái cấu trúc) ---
+// --- Component Chính (Đã được cập nhật) ---
 function JobDetailPage() {
     // --- STATE MANAGEMENT ---
     const { jobId: workflowId } = useParams();
@@ -47,9 +47,7 @@ function JobDetailPage() {
     const [error, setError] = useState(null);
     const [isRefreshing, setIsRefreshing] = useState(false);
 
-    // --- LOGIC FETCH DỮ LIỆU ---
-
-    // Hàm fetch status, dùng cho cả polling và refresh
+    // --- LOGIC FETCH DỮ LIỆU (Không thay đổi) ---
     const fetchStatus = useCallback(async () => {
         try {
             const response = await fetch(`/api/workflows/${workflowId}/status`);
@@ -58,11 +56,9 @@ function JobDetailPage() {
             setStatusData(data);
         } catch (e) {
             setError(e.message);
-            // Không set statusData về null để tránh giao diện bị mất đột ngột
         }
     }, [workflowId]);
 
-    // Hàm fetch summary, dùng cho lần đầu và refresh
     const fetchSummary = useCallback(async () => {
         try {
             const response = await fetch(`/api/workflows/${workflowId}/summary`);
@@ -74,8 +70,6 @@ function JobDetailPage() {
         }
     }, [workflowId]);
 
-    // === HOOK 1: LẤY DỮ LIỆU BAN ĐẦU ===
-    // Chỉ chạy một lần khi component được mount
     useEffect(() => {
         const fetchInitialData = async () => {
             setLoading(true);
@@ -84,38 +78,25 @@ function JobDetailPage() {
             setLoading(false);
         };
         void fetchInitialData();
-    }, [fetchStatus, fetchSummary]); // Phụ thuộc vào các hàm đã được useCallback
+    }, [fetchStatus, fetchSummary]);
 
-    // === HOOK 2: QUẢN LÝ POLLING TỰ ĐỘNG ===
-    // Hook này sẽ chạy mỗi khi statusData thay đổi
     useEffect(() => {
-        // Điều kiện để dừng polling
         const isJobRunning = statusData && !['completed', 'failed', 'cancelled'].includes(statusData.workflow.status);
-
         if (!isJobRunning) {
-            return; // Dừng lại, không tạo interval mới
+            return;
         }
-
-        // Nếu job đang chạy, tạo một interval mới
         const intervalId = setInterval(() => {
             void fetchStatus();
         }, POLLING_INTERVAL);
-
-        // Hàm cleanup: sẽ được gọi khi statusData thay đổi hoặc component unmount
-        // Nó sẽ xóa interval cũ trước khi tạo cái mới (nếu cần)
         return () => clearInterval(intervalId);
+    }, [statusData, fetchStatus]);
 
-    }, [statusData, fetchStatus]); // Phụ thuộc vào statusData và hàm fetchStatus
-
-    // Hàm xử lý cho nút Refresh
     const handleRefresh = useCallback(async () => {
         setIsRefreshing(true);
         setError(null);
-        // Gọi lại cả hai API để có dữ liệu mới nhất
         await Promise.all([fetchStatus(), fetchSummary()]);
         setIsRefreshing(false);
     }, [fetchStatus, fetchSummary]);
-
 
     // --- RENDER LOGIC ---
     if (loading) return <Center><Loader size="lg" /></Center>;
@@ -123,7 +104,47 @@ function JobDetailPage() {
     if (!statusData) return <Text>Không có dữ liệu cho workflow này.</Text>;
 
     const { workflow, sub_jobs, progress } = statusData;
-    const completedSubJobs = sub_jobs.filter(job => job.status === 'completed');
+
+    // --- THAY ĐỔI: Gom nhóm các sub-job theo tool ---
+    const aggregatedJobs = sub_jobs.reduce((acc, job) => {
+        // Nếu tool này chưa có trong accumulator, khởi tạo nó
+        if (!acc[job.tool]) {
+            acc[job.tool] = {
+                tool: job.tool,
+                options: job.options, // Lấy config từ job đầu tiên của nhóm
+                count: 0,
+                completed: 0,
+                failed: 0,
+                running: 0,
+                firstStep: job.step_order, // Giữ lại step đầu tiên để sắp xếp
+                subJobIds: []
+            };
+        }
+
+        // Cập nhật số liệu cho nhóm
+        const group = acc[job.tool];
+        group.count += 1;
+        group.subJobIds.push(job.job_id);
+        if (job.status === 'completed') group.completed += 1;
+        if (job.status === 'failed') group.failed += 1;
+        if (job.status === 'running') group.running += 1;
+
+        return acc;
+    }, {});
+
+    // Chuyển đổi object đã gom nhóm thành một mảng và sắp xếp
+    const groupedJobsForTable = Object.values(aggregatedJobs).sort((a, b) => a.firstStep - b.firstStep);
+
+    // Logic cho Tabs (không đổi)
+    const representativeJobs = [];
+    const seenTools = new Set();
+    sub_jobs.filter(job => job.status === 'completed').forEach(job => {
+        if (!seenTools.has(job.tool)) {
+            seenTools.add(job.tool);
+            representativeJobs.push(job);
+        }
+    });
+    // --- KẾT THÚC THAY ĐỔI LOGIC ---
 
     return (
         <Stack gap="xl">
@@ -145,7 +166,6 @@ function JobDetailPage() {
                 </Group>
             </Group>
 
-            {/* Thông báo lỗi không nghiêm trọng (khi fetch thất bại nhưng vẫn có dữ liệu cũ) */}
             {error && <Alert color="orange" title="Cảnh báo" icon={<IconAlertCircle />}>Không thể cập nhật dữ liệu mới nhất. Lỗi: {error}</Alert>}
 
             {/* Card tổng quan */}
@@ -185,7 +205,6 @@ function JobDetailPage() {
                 ]}
             />
 
-            {/* Hiển thị có điều kiện dựa trên viewMode */}
             {viewMode === 'summary' && (
                 <Stack>
                     {summaryData ? (
@@ -200,53 +219,68 @@ function JobDetailPage() {
 
             {viewMode === 'tool' && (
                 <Stack gap="md">
-                    {/* Bảng trạng thái các bước con */}
+                    {/* --- THAY ĐỔI: Bảng trạng thái các bước thực thi --- */}
                     <Card withBorder p="md" radius="md">
                         <Title order={4} mb="md">Các bước thực thi</Title>
                         <Table.ScrollContainer minWidth={500}>
                             <Table>
                                 <Table.Thead>
                                     <Table.Tr>
-                                        <Table.Th>Bước</Table.Th>
                                         <Table.Th>Công cụ</Table.Th>
                                         <Table.Th>Cấu hình</Table.Th>
-                                        <Table.Th>Trạng thái</Table.Th>
+                                        <Table.Th>Tiến trình</Table.Th>
                                     </Table.Tr>
                                 </Table.Thead>
                                 <Table.Tbody>
-                                    {sub_jobs.map(job => (
-                                        <Table.Tr key={job.job_id}>
-                                            <Table.Td>{job.step_order}</Table.Td>
-                                            <Table.Td>{job.tool}</Table.Td>
-                                            <Table.Td><OptionsDisplay options={job.options} /></Table.Td>
-                                            <Table.Td>
-                                                <Group gap="xs" wrap="nowrap">
-                                                    <Badge color={getStatusColor(job.status)}>{job.status}</Badge>
-                                                    {job.error_message &&
-                                                        <Tooltip label={job.error_message} withArrow multiline w={300}>
-                                                            <IconAlertCircle size={16} color="var(--mantine-color-red-6)" />
+                                    {/* Render bảng từ dữ liệu đã được gom nhóm */}
+                                    {groupedJobsForTable.map(group => {
+                                        const progressPercent = group.count > 0 ? (group.completed / group.count) * 100 : 0;
+
+                                        // Xác định trạng thái tổng hợp của nhóm
+                                        let overallStatus = 'completed';
+                                        let statusColor = 'green';
+                                        if (group.failed > 0) {
+                                            overallStatus = 'failed';
+                                            statusColor = 'red';
+                                        } else if (group.running > 0 || group.completed < group.count) {
+                                            overallStatus = 'running';
+                                            statusColor = 'blue';
+                                        }
+
+                                        return (
+                                            <Table.Tr key={group.tool}>
+                                                <Table.Td>
+                                                    <Text fw={500}>{group.tool}</Text>
+                                                    <Text size="xs" c="dimmed">{group.count} tiến trình con</Text>
+                                                </Table.Td>
+                                                <Table.Td><OptionsDisplay options={group.options} /></Table.Td>
+                                                <Table.Td>
+                                                    <Group>
+                                                        <Progress value={progressPercent} style={{ flexGrow: 1 }} size="lg" radius="sm" />
+                                                        <Tooltip label={`${group.completed} / ${group.count} hoàn thành`}>
+                                                            <Badge color={statusColor} variant="light">{overallStatus}</Badge>
                                                         </Tooltip>
-                                                    }
-                                                </Group>
-                                            </Table.Td>
-                                        </Table.Tr>
-                                    ))}
+                                                    </Group>
+                                                </Table.Td>
+                                            </Table.Tr>
+                                        );
+                                    })}
                                 </Table.Tbody>
                             </Table>
                         </Table.ScrollContainer>
                     </Card>
 
-                    {/* Các Tab kết quả chi tiết */}
+                    {/* Các Tab kết quả chi tiết (Không thay đổi) */}
                     <Card withBorder p="md" radius="md">
                         <Title order={4} mb="md">Kết quả chi tiết</Title>
-                        {completedSubJobs.length > 0 ? (
-                            <Tabs defaultValue={completedSubJobs[0].tool}>
+                        {representativeJobs.length > 0 ? (
+                            <Tabs defaultValue={representativeJobs[0].tool}>
                                 <Tabs.List>
-                                    {completedSubJobs.map(job => (
+                                    {representativeJobs.map(job => (
                                         <Tabs.Tab key={job.job_id} value={job.tool}>{job.tool}</Tabs.Tab>
                                     ))}
                                 </Tabs.List>
-                                {completedSubJobs.map(job => (
+                                {representativeJobs.map(job => (
                                     <Tabs.Panel key={job.job_id} value={job.tool} pt="md">
                                         <ResultViewer subJob={job} />
                                     </Tabs.Panel>

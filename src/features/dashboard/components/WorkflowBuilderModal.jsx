@@ -26,27 +26,23 @@ function WorkflowBuilderModal({ opened, onClose }) {
     const navigate = useNavigate();
     const poolIps = useIpPoolStore((state) => state.ips);
 
-    // --- STATE ĐÃ ĐƯỢC TINH GỌN ---
     const [targets, setTargets] = useState('');
     const [workflow, setWorkflow] = useState([]);
     const [selectedCountry, setSelectedCountry] = useState('AUTO');
 
-    // State cho dữ liệu tải từ API
     const [scanTemplates, setScanTemplates] = useState([]);
     const [availableCountries, setAvailableCountries] = useState([]);
 
-    // State quản lý trạng thái giao diện (UX)
     const [isLoadingTools, setIsLoadingTools] = useState(false);
     const [isLoadingCountries, setIsLoadingCountries] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState(null);
 
-    // useEffect để tải tools và countries
     useEffect(() => {
         if (opened) {
             const fetchInitialData = async () => {
                 const cachedTools = cacheManager.get('api_tools', CACHE_DURATION_MINUTES);
-                const cachedCountries = cacheManager.get('api_countries', CACHE_DURATION_MINUTES);
+                const cachedCountries = cacheManager.get('api_vpn_profiles_by_country', CACHE_DURATION_MINUTES);
 
                 if (cachedTools && cachedCountries) {
                     setScanTemplates(cachedTools);
@@ -59,32 +55,36 @@ function WorkflowBuilderModal({ opened, onClose }) {
                 setError(null);
 
                 try {
-                    const [toolsRes, countriesRes] = await Promise.all([
+                    const [toolsRes, profilesRes] = await Promise.all([
                         fetch('/api/tools'),
-                        fetch('/api/vpns/countries')
+                        fetch('/api/vpn_profiles')
                     ]);
 
                     if (!toolsRes.ok) throw new Error('Không thể tải cấu hình các loại scan.');
-                    if (!countriesRes.ok) throw new Error('Không thể tải danh sách quốc gia.');
+                    if (!profilesRes.ok) throw new Error('Không thể tải danh sách VPN profiles.');
 
                     const toolsData = await toolsRes.json();
-                    const countriesData = await countriesRes.json();
+                    const vpnProfilesData = await profilesRes.json();
 
-                    const tools = toolsData.tools || [];
-                    const countryList = countriesData.countries || [];
+                    const countryCounts = vpnProfilesData.reduce((acc, profile) => {
+                        const country = profile.country || 'UNKNOWN';
+                        acc[country] = (acc[country] || 0) + 1;
+                        return acc;
+                    }, {});
 
-                    const countries = countryList.map(c => ({
-                        value: c.code,
-                        label: `${c.code} (${c.count} VPNs)`
+                    const countries = Object.entries(countryCounts).map(([code, count]) => ({
+                        value: code,
+                        label: `${code} (${count} VPNs)`
                     }));
 
                     const countriesWithAuto = [{ value: 'AUTO', label: 'Tự động (Ngẫu nhiên)' }, ...countries];
+                    const tools = toolsData.tools || [];
 
                     setScanTemplates(tools);
                     setAvailableCountries(countriesWithAuto);
 
                     cacheManager.set('api_tools', tools, CACHE_DURATION_MINUTES);
-                    cacheManager.set('api_countries', countriesWithAuto, CACHE_DURATION_MINUTES);
+                    cacheManager.set('api_vpn_profiles_by_country', countriesWithAuto, CACHE_DURATION_MINUTES);
 
                 } catch (e) {
                     setError(e.message);
@@ -96,8 +96,6 @@ function WorkflowBuilderModal({ opened, onClose }) {
             void fetchInitialData();
         }
     }, [opened]);
-
-    // --- ĐÃ XÓA useEffect thứ hai (fetch profiles) ---
 
     const handleImportFromPool = () => {
         const ipListString = poolIps.map(ip => ip.target).join('\n');
@@ -117,11 +115,13 @@ function WorkflowBuilderModal({ opened, onClose }) {
         const finalWorkflow = {
             targets: targetList,
             country: selectedCountry,
+            // THAY ĐỔI 1: Quay lại sử dụng 'tool_id' như ban đầu
             steps: workflow.map(step => ({ tool_id: step.type, params: step.params })),
         };
 
         try {
-            const response = await fetch('/api/scan/workflow', {
+            // THAY ĐỔI 2: Cập nhật đường dẫn API
+            const response = await fetch('/api/workflow', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(finalWorkflow),
@@ -129,7 +129,8 @@ function WorkflowBuilderModal({ opened, onClose }) {
 
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.detail || 'Gửi yêu cầu thất bại.');
+                const errorMessage = errorData.detail?.[0]?.msg || errorData.detail || 'Gửi yêu cầu thất bại.';
+                throw new Error(errorMessage);
             }
 
             const masterJob = await response.json();
@@ -202,12 +203,10 @@ function WorkflowBuilderModal({ opened, onClose }) {
                     placeholder="Chọn một quốc gia"
                     data={availableCountries}
                     value={selectedCountry}
-                    onChange={setSelectedCountry} // Logic onChange giờ đơn giản hơn
+                    onChange={setSelectedCountry}
                     disabled={isLoadingCountries}
                     rightSection={isLoadingCountries ? <Loader size="xs" /> : null}
                 />
-
-                {/* --- ĐÃ XÓA ô Select thứ hai (chọn profile) --- */}
 
                 <Grid>
                     <Grid.Col span={{ base: 12, md: 5 }}>
