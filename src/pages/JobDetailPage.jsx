@@ -46,6 +46,8 @@ function JobDetailPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [isRefreshing, setIsRefreshing] = useState(false);
+    // --- THÊM MỚI: State để quản lý việc mở rộng hàng ---
+    const [expandedGroup, setExpandedGroup] = useState(null);
 
     // --- LOGIC FETCH DỮ LIỆU (Không thay đổi) ---
     const fetchStatus = useCallback(async () => {
@@ -105,34 +107,29 @@ function JobDetailPage() {
 
     const { workflow, sub_jobs, progress } = statusData;
 
-    // --- THAY ĐỔI: Gom nhóm các sub-job theo tool ---
+    // --- CẬP NHẬT: Logic gom nhóm sub-job ---
     const aggregatedJobs = sub_jobs.reduce((acc, job) => {
-        // Nếu tool này chưa có trong accumulator, khởi tạo nó
         if (!acc[job.tool]) {
             acc[job.tool] = {
                 tool: job.tool,
-                options: job.options, // Lấy config từ job đầu tiên của nhóm
+                options: job.options,
                 count: 0,
                 completed: 0,
                 failed: 0,
                 running: 0,
-                firstStep: job.step_order, // Giữ lại step đầu tiên để sắp xếp
-                subJobIds: []
+                firstStep: job.step_order,
+                subJobsInGroup: [] // Giữ lại danh sách các job con
             };
         }
-
-        // Cập nhật số liệu cho nhóm
         const group = acc[job.tool];
         group.count += 1;
-        group.subJobIds.push(job.job_id);
+        group.subJobsInGroup.push(job); // Thêm job con vào danh sách của nhóm
         if (job.status === 'completed') group.completed += 1;
         if (job.status === 'failed') group.failed += 1;
         if (job.status === 'running') group.running += 1;
-
         return acc;
     }, {});
 
-    // Chuyển đổi object đã gom nhóm thành một mảng và sắp xếp
     const groupedJobsForTable = Object.values(aggregatedJobs).sort((a, b) => a.firstStep - b.firstStep);
 
     // Logic cho Tabs (không đổi)
@@ -144,7 +141,6 @@ function JobDetailPage() {
             representativeJobs.push(job);
         }
     });
-    // --- KẾT THÚC THAY ĐỔI LOGIC ---
 
     return (
         <Stack gap="xl">
@@ -219,11 +215,11 @@ function JobDetailPage() {
 
             {viewMode === 'tool' && (
                 <Stack gap="md">
-                    {/* --- THAY ĐỔI: Bảng trạng thái các bước thực thi --- */}
+                    {/* --- CẬP NHẬT: Bảng trạng thái các bước thực thi có thể mở rộng --- */}
                     <Card withBorder p="md" radius="md">
                         <Title order={4} mb="md">Các bước thực thi</Title>
                         <Table.ScrollContainer minWidth={500}>
-                            <Table>
+                            <Table verticalSpacing="sm">
                                 <Table.Thead>
                                     <Table.Tr>
                                         <Table.Th>Công cụ</Table.Th>
@@ -232,37 +228,56 @@ function JobDetailPage() {
                                     </Table.Tr>
                                 </Table.Thead>
                                 <Table.Tbody>
-                                    {/* Render bảng từ dữ liệu đã được gom nhóm */}
                                     {groupedJobsForTable.map(group => {
+                                        const isExpanded = expandedGroup === group.tool;
                                         const progressPercent = group.count > 0 ? (group.completed / group.count) * 100 : 0;
-
-                                        // Xác định trạng thái tổng hợp của nhóm
                                         let overallStatus = 'completed';
                                         let statusColor = 'green';
-                                        if (group.failed > 0) {
-                                            overallStatus = 'failed';
-                                            statusColor = 'red';
-                                        } else if (group.running > 0 || group.completed < group.count) {
-                                            overallStatus = 'running';
-                                            statusColor = 'blue';
-                                        }
+                                        if (group.failed > 0) { overallStatus = 'failed'; statusColor = 'red'; }
+                                        else if (group.running > 0 || group.completed < group.count) { overallStatus = 'running'; statusColor = 'blue'; }
 
                                         return (
-                                            <Table.Tr key={group.tool}>
-                                                <Table.Td>
-                                                    <Text fw={500}>{group.tool}</Text>
-                                                    <Text size="xs" c="dimmed">{group.count} tiến trình con</Text>
-                                                </Table.Td>
-                                                <Table.Td><OptionsDisplay options={group.options} /></Table.Td>
-                                                <Table.Td>
-                                                    <Group>
-                                                        <Progress value={progressPercent} style={{ flexGrow: 1 }} size="lg" radius="sm" />
-                                                        <Tooltip label={`${group.completed} / ${group.count} hoàn thành`}>
-                                                            <Badge color={statusColor} variant="light">{overallStatus}</Badge>
-                                                        </Tooltip>
-                                                    </Group>
-                                                </Table.Td>
-                                            </Table.Tr>
+                                            <React.Fragment key={group.tool}>
+                                                {/* Hàng chính, có thể nhấp vào */}
+                                                <Table.Tr
+                                                    onClick={() => setExpandedGroup(isExpanded ? null : group.tool)}
+                                                    style={{ cursor: 'pointer', backgroundColor: isExpanded ? 'var(--mantine-color-gray-0)' : 'transparent' }}
+                                                >
+                                                    <Table.Td>
+                                                        <Text fw={500}>{group.tool}</Text>
+                                                        <Text size="xs" c="dimmed">{group.count} tiến trình con</Text>
+                                                    </Table.Td>
+                                                    <Table.Td><OptionsDisplay options={group.options} /></Table.Td>
+                                                    <Table.Td>
+                                                        <Group>
+                                                            <Progress value={progressPercent} style={{ flexGrow: 1 }} size="lg" radius="sm" />
+                                                            <Tooltip label={`${group.completed} / ${group.count} hoàn thành`}>
+                                                                <Badge color={statusColor} variant="light">{overallStatus}</Badge>
+                                                            </Tooltip>
+                                                        </Group>
+                                                    </Table.Td>
+                                                </Table.Tr>
+
+                                                {/* Hàng chi tiết, chỉ hiển thị khi được mở rộng */}
+                                                {isExpanded && (
+                                                    <Table.Tr>
+                                                        <Table.Td colSpan={3} p="xs" pl="lg" bg="var(--mantine-color-gray-0)">
+                                                            <Stack gap="xs">
+                                                                {group.subJobsInGroup.map(subJob => (
+                                                                    <Group key={subJob.job_id} justify="space-between" wrap="nowrap">
+                                                                        <Text size="xs" c="dimmed" ff="monospace" truncate="end">
+                                                                            ID: ...{subJob.job_id.slice(-6)}
+                                                                        </Text>
+                                                                        <Badge variant="filled" size="sm" color={getStatusColor(subJob.status)}>
+                                                                            {subJob.status}
+                                                                        </Badge>
+                                                                    </Group>
+                                                                ))}
+                                                            </Stack>
+                                                        </Table.Td>
+                                                    </Table.Tr>
+                                                )}
+                                            </React.Fragment>
                                         );
                                     })}
                                 </Table.Tbody>

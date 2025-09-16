@@ -10,13 +10,12 @@ import {
     Text,
     Box,
     NumberInput,
-    Button,
-    TagsInput // 1. `TagsInput` is added, `Combobox` and `useCombobox` are removed.
+    Textarea,
+    TagsInput
 } from '@mantine/core';
 import { IconGripVertical, IconTrash } from '@tabler/icons-react';
 
-// --- Component FormField được tái cấu trúc hoàn chỉnh ---
-// Component FormField giờ đã đơn giản hơn
+// --- Component FormField đã được cập nhật ---
 function FormField({ field, params, handleParamChange }) {
     const key = field.name;
     const otherProps = {
@@ -24,32 +23,29 @@ function FormField({ field, params, handleParamChange }) {
         placeholder: field.placeholder,
     };
 
-    // The `searchValue` state is no longer needed and has been removed.
-
     switch (field.component) {
         case 'TextInput':
-            const isDisabled = field.name === 'ports' && params.allPorts === true;
+            const isDisabled = field.name === 'ports' && params.all_ports === true;
             return (
-                <React.Fragment key={key}>
-                    <TextInput
-                        {...otherProps}
-                        value={params[field.name] || ''}
-                        onChange={(event) => handleParamChange(field.name, event.currentTarget.value)}
-                        disabled={isDisabled}
-                    />
-                    {field.presets && (
-                        <Group gap="xs" mt="xs">
-                            {field.presets.map(preset => (
-                                <Button key={preset.label} variant="light" size="xs" onClick={() => handleParamChange(field.name, preset.value)}>
-                                    {preset.label}
-                                </Button>
-                            ))}
-                        </Group>
-                    )}
-                </React.Fragment>
+                <TextInput
+                    {...otherProps}
+                    value={params[field.name] || ''}
+                    onChange={(event) => handleParamChange(field.name, event.currentTarget.value)}
+                    disabled={isDisabled}
+                />
             );
 
-        // 2. The `TagsInput` case is now the correct implementation.
+        case 'Textarea': // THÊM MỚI: Hỗ trợ Textarea cho bruteforce-scan
+            return (
+                <Textarea
+                    {...otherProps}
+                    value={params[field.name] || ''}
+                    onChange={(event) => handleParamChange(field.name, event.currentTarget.value)}
+                    autosize
+                    minRows={3}
+                />
+            );
+
         case 'TagsInput':
             return (
                 <TagsInput
@@ -72,7 +68,7 @@ function FormField({ field, params, handleParamChange }) {
                     onChange={(event) => {
                         const isChecked = event.currentTarget.checked;
                         handleParamChange(field.name, isChecked);
-                        if (field.name === 'allPorts' && isChecked) {
+                        if (field.name === 'all_ports' && isChecked) {
                             handleParamChange('ports', '');
                         }
                     }}
@@ -84,8 +80,13 @@ function FormField({ field, params, handleParamChange }) {
                 <Select
                     key={key}
                     {...otherProps}
-                    data={field.data}
-                    value={params[field.name] || field.defaultValue}
+                    // SỬA LỖI: Chuyển đổi value của option thành string
+                    data={field.data.map(option => ({
+                        ...option,
+                        value: String(option.value)
+                    }))}
+                    // SỬA LỖI: Chuyển đổi value của component thành string
+                    value={String(params[field.name] ?? field.defaultValue)}
                     onChange={(value) => handleParamChange(field.name, value)}
                 />
             );
@@ -95,8 +96,14 @@ function FormField({ field, params, handleParamChange }) {
                 <MultiSelect
                     key={key}
                     {...otherProps}
-                    data={field.data}
-                    value={params[field.name] || []}
+                    // SỬA LỖI: Chuyển đổi value của option thành string
+                    data={field.data.map(option => (
+                        typeof option === 'string'
+                            ? option
+                            : { ...option, value: String(option.value) }
+                    ))}
+                    // SỬA LỖI: Chuyển đổi value của component thành mảng các string
+                    value={(params[field.name] || []).map(String)}
                     onChange={(value) => handleParamChange(field.name, value)}
                     clearable
                 />
@@ -117,20 +124,21 @@ function FormField({ field, params, handleParamChange }) {
     }
 }
 
-// --- Component ScanStep chính (không thay đổi) ---
-function ScanStep({ step, onRemove, onParamsChange, listeners, style, scanTemplates }) {
+// --- Component ScanStep đã được cập nhật ---
+// Thêm logic hiển thị có điều kiện cho bruteforce-scan
+const ScanStep = React.forwardRef(({ step, onRemove, onParamsChange, listeners, style, scanTemplates, ...props }, ref) => {
     const template = scanTemplates.find(t => t.id === step.type);
 
     if (!template) {
         return (
-            <Box style={style} bg="red.1" p="xs" radius="sm" mb="xs">
-                <Text c="red">Error: Configuration not found for scan type "{step.type}"</Text>
+            <Box ref={ref} style={style} bg="red.1" p="xs" radius="sm" mb="xs" {...props}>
+                <Text c="red">Lỗi: Không tìm thấy cấu hình cho loại scan "{step.type}"</Text>
             </Box>
         );
     }
 
     return (
-        <Box style={style} bg="gray.0" p="xs" radius="sm" mb="xs">
+        <Box ref={ref} style={style} bg="gray.0" p="xs" radius="sm" mb="xs" {...props}>
             <Group gap="xs" wrap="nowrap" align="flex-start">
                 <ActionIcon variant="transparent" {...listeners} style={{ cursor: 'grab', touchAction: 'none', marginTop: '4px' }}>
                     <IconGripVertical size={18} />
@@ -142,18 +150,27 @@ function ScanStep({ step, onRemove, onParamsChange, listeners, style, scanTempla
                             <Text fw={500}>{template.name}</Text>
                         </Accordion.Control>
                         <Accordion.Panel>
-                            {template.fields.map(field => (
-                                <Box key={field.name} mb="sm">
-                                    <FormField
-                                        field={field}
-                                        params={step.params}
-                                        handleParamChange={(paramName, value) => {
-                                            console.log('✅ ScanStep is trying to send:', { stepId: step.id, paramName, value });
-                                            onParamsChange(step.id, paramName, value);
-                                        }}
-                                    />
-                                </Box>
-                            ))}
+                            {template.fields.map(field => {
+                                // --- THÊM MỚI: Logic hiển thị có điều kiện cho bruteforce-scan ---
+                                if (step.type === 'bruteforce-scan') {
+                                    const strategy = step.params.strategy || 'dictionary';
+                                    if (field.name === 'users_list' && strategy === 'stuffing') return null;
+                                    if (field.name === 'passwords_list' && strategy === 'stuffing') return null;
+                                    if (field.name === 'pairs_list' && strategy !== 'stuffing') return null;
+                                }
+
+                                return (
+                                    <Box key={field.name} mb="sm">
+                                        <FormField
+                                            field={field}
+                                            params={step.params}
+                                            handleParamChange={(paramName, value) => {
+                                                onParamsChange(step.id, paramName, value);
+                                            }}
+                                        />
+                                    </Box>
+                                );
+                            })}
                         </Accordion.Panel>
                     </Accordion.Item>
                 </Accordion>
@@ -164,6 +181,6 @@ function ScanStep({ step, onRemove, onParamsChange, listeners, style, scanTempla
             </Group>
         </Box>
     );
-}
+});
 
 export default ScanStep;

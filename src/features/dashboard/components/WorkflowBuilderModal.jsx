@@ -16,6 +16,7 @@ import {
 import { notifications } from '@mantine/notifications';
 import { IconAlertCircle, IconCheck } from '@tabler/icons-react';
 import { useIpPoolStore } from '../../../stores/ipPoolStore';
+import { useUiStore } from '../../../stores/uiStore'; // Import uiStore
 import { cacheManager } from '../../../utils/cacheManager';
 import AvailableScans from './AvailableScans';
 import WorkflowSteps from './WorkflowSteps';
@@ -25,6 +26,8 @@ const CACHE_DURATION_MINUTES = 15;
 function WorkflowBuilderModal({ opened, onClose }) {
     const navigate = useNavigate();
     const poolIps = useIpPoolStore((state) => state.ips);
+    // Lấy dữ liệu ban đầu từ store
+    const initialWorkflowData = useUiStore((state) => state.initialWorkflowData);
 
     const [targets, setTargets] = useState('');
     const [workflow, setWorkflow] = useState([]);
@@ -96,6 +99,19 @@ function WorkflowBuilderModal({ opened, onClose }) {
             void fetchInitialData();
         }
     }, [opened]);
+
+    // THÊM MỚI: useEffect để điền sẵn dữ liệu từ AI
+    useEffect(() => {
+        if (opened && initialWorkflowData) {
+            setTargets(initialWorkflowData.targets ? initialWorkflowData.targets.join('\n') : '');
+            setWorkflow(initialWorkflowData.steps || []);
+        } else {
+            // Reset form khi modal đóng hoặc không có dữ liệu ban đầu
+            setTargets('');
+            setWorkflow([]);
+        }
+    }, [opened, initialWorkflowData]);
+
 
     const handleImportFromPool = () => {
         const ipListString = poolIps.map(ip => ip.target).join('\n');
