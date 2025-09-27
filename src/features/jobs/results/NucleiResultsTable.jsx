@@ -22,18 +22,17 @@ const formatTimestamp = (isoString) => {
 };
 
 function NucleiResultsTable({ data }) {
-    // 1. State để theo dõi xem hàng nào đang được mở rộng
     const [expandedRow, setExpandedRow] = useState(null);
 
-    // Hàm xử lý sự kiện khi người dùng nhấp vào một hàng
+    // Trích xuất mảng kết quả thực tế từ dữ liệu lồng nhau
+    const findings = data[0]?.scan_metadata?.nuclei_results || [];
+
     const handleRowClick = (index) => {
-        // Nếu nhấp vào hàng đang mở, thì đóng nó lại (set về null).
-        // Nếu không, mở hàng mới bằng cách set index của nó.
         setExpandedRow(current => (current === index ? null : index));
     };
 
     // Xử lý trường hợp không có dữ liệu
-    if (!data || data.length === 0) {
+    if (!findings || findings.length === 0) {
         return (
             <Table>
                 <Table.Tbody>
@@ -47,11 +46,11 @@ function NucleiResultsTable({ data }) {
         );
     }
 
-    const rows = data.map((item, index) => {
+    const rows = findings.map((item, index) => {
         const isExpanded = expandedRow === index; // Kiểm tra xem hàng hiện tại có đang được mở rộng không
 
         return (
-            // 2. Dùng React.Fragment để nhóm 2 hàng (hàng chính và hàng chi tiết) lại với nhau
+            // Dùng React.Fragment để nhóm 2 hàng (hàng chính và hàng chi tiết) lại với nhau
             <React.Fragment key={`${item['template-id']}-${index}`}>
                 {/* Hàng chính chứa thông tin tóm tắt, có thể nhấp vào */}
                 <Table.Tr
@@ -80,7 +79,7 @@ function NucleiResultsTable({ data }) {
                     </Table.Td>
                 </Table.Tr>
 
-                {/* 3. Hàng chi tiết, chỉ hiển thị khi `isExpanded` là true */}
+                {/* Hàng chi tiết, chỉ hiển thị khi `isExpanded` là true */}
                 {isExpanded && (
                     <Table.Tr>
                         {/* Dùng colSpan để ô này chiếm toàn bộ chiều rộng của bảng */}

@@ -2,7 +2,6 @@
 import React from 'react';
 import { Table, Badge, Text, Anchor } from '@mantine/core';
 
-// Hàm helper để chọn màu cho status code (có thể tái sử dụng)
 const getStatusCodeColor = (statusCode) => {
     if (!statusCode) return 'gray';
     if (statusCode >= 500) return 'red';
@@ -13,8 +12,10 @@ const getStatusCodeColor = (statusCode) => {
 };
 
 function DirsearchScanResultsTable({ data }) {
+    // THAY ĐỔI: Trích xuất mảng kết quả thực tế từ dữ liệu lồng nhau
+    const findings = data[0]?.scan_metadata?.dirsearch_results || [];
 
-    const rows = data.map((item, index) => (
+    const rows = findings.map((item, index) => (
         <Table.Tr key={item.url || index}>
             <Table.Td>
                 <Anchor href={item.url} target="_blank" size="sm" lineClamp={1}>{item.url}</Anchor>
@@ -26,7 +27,6 @@ function DirsearchScanResultsTable({ data }) {
             </Table.Td>
             <Table.Td>{item.size}</Table.Td>
             <Table.Td>
-                {/* Chỉ hiển thị link nếu có redirect_to */}
                 {item.redirect_to ? (
                     <Anchor href={item.redirect_to} target="_blank" size="sm" c="dimmed" lineClamp={1}>
                         {item.redirect_to}

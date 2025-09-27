@@ -5,6 +5,7 @@ import Header from './components/Header.jsx';
 import VitalSigns from './components/VitalSigns.jsx';
 import WorkflowsHistory from './components/WorkflowsHistory';
 import Controls from './components/Controls';
+import AiControls from './components/AiControls'; // 1. Import component mới
 import WorkflowBuilderModal from './components/WorkflowBuilderModal';
 import { useUiStore } from '../../stores/uiStore';
 
@@ -13,10 +14,7 @@ function Dashboard() {
 
     return (
         <>
-            <WorkflowBuilderModal
-                opened={isWorkflowModalOpen}
-                onClose={closeWorkflowModal}
-            />
+            <WorkflowBuilderModal opened={isWorkflowModalOpen} onClose={closeWorkflowModal} />
             <Stack gap="xl">
                 <Header />
                 <VitalSigns />
@@ -25,7 +23,10 @@ function Dashboard() {
                         <WorkflowsHistory />
                     </Grid.Col>
                     <Grid.Col span={{ base: 12, lg: 4 }}>
-                        <Controls />
+                        <Stack>
+                            <Controls />
+                            <AiControls /> {/* 2. Thêm component vào đây */}
+                        </Stack>
                     </Grid.Col>
                 </Grid>
             </Stack>

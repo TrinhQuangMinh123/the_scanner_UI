@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 
 // --- Imports từ Mantine UI Kit ---
-import { Stack, Pagination, Group, Text } from '@mantine/core';
+import { Stack, Pagination, Group } from '@mantine/core';
 
 // --- Imports các Component con ---
 import ResultsWrapper from './ResultsWrapper';
@@ -12,6 +12,7 @@ import NucleiResultsTable from './NucleiResultsTable';
 import WpscanResults from './WpscanResults';
 import HttpxResultsTable from './HttpxResultsTable';
 import DirsearchScanResultsTable from './DirsearchScanResultsTable';
+import SqlmapResultsTable from './SqlmapResultsTable'; // Import component mới
 
 // Hằng số: Số lượng kết quả hiển thị trên mỗi trang.
 const ITEMS_PER_PAGE = 10;
@@ -36,7 +37,10 @@ const renderResults = (subJob, resultsToRender) => {
             return <HttpxResultsTable data={resultsToRender} />;
         case 'dirsearch-scan':
             return <DirsearchScanResultsTable data={resultsToRender} />;
+        case 'sqlmap-scan': // Thêm case mới cho sqlmap-scan
+            return <SqlmapResultsTable data={resultsToRender} />;
         default:
+            // Giữ nguyên fallback để debug
             return <pre>{JSON.stringify(resultsToRender, null, 2)}</pre>;
     }
 };
@@ -46,7 +50,7 @@ const renderResults = (subJob, resultsToRender) => {
  * Fetch toàn bộ kết quả cho một sub-job và thực hiện phân trang ở phía client.
  */
 function ResultViewer({ subJob }) {
-    // 1. State để lưu TOÀN BỘ kết quả
+    // State để lưu TOÀN BỘ kết quả
     const [allResults, setAllResults] = useState(null);
     const [activePage, setPage] = useState(1);
 
@@ -60,7 +64,7 @@ function ResultViewer({ subJob }) {
             setLoading(true);
             setError(null);
             try {
-                // 2. Gọi API không cần tham số phân trang
+                // Gọi API không cần tham số phân trang
                 const apiUrl = `/api/sub_jobs/${subJob.job_id}/results`;
 
                 const response = await fetch(apiUrl);
@@ -70,7 +74,7 @@ function ResultViewer({ subJob }) {
 
                 const data = await response.json();
 
-                // 3. Lấy ra mảng "results" từ object và lưu vào state
+                // Lấy ra mảng "results" từ object và lưu vào state
                 // Giả định API trả về: { "results": [...] }
                 setAllResults(data.results || []);
 
@@ -86,7 +90,7 @@ function ResultViewer({ subJob }) {
         // Chỉ chạy 1 lần khi subJob thay đổi
     }, [subJob.job_id]);
 
-    // 4. Logic tính toán phân trang được thực hiện ở client
+    // Logic tính toán phân trang được thực hiện ở client
     const totalPages = allResults ? Math.ceil(allResults.length / ITEMS_PER_PAGE) : 0;
     const start = (activePage - 1) * ITEMS_PER_PAGE;
     const end = start + ITEMS_PER_PAGE;

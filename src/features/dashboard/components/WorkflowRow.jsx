@@ -2,8 +2,9 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Table, Group, Button, Text, Badge, Tooltip, Progress } from '@mantine/core';
+import { IconSparkles } from '@tabler/icons-react'; // Import the new icon
 
-// Hàm để lấy màu cho badge trạng thái
+// Helper function to get color for status badge
 const getStatusColor = (status) => {
     switch (status) {
         case 'completed': return 'green';
@@ -21,14 +22,14 @@ function WorkflowRow({ workflow, onCancel }) {
         navigate(`/jobs/${workflow.workflow_id}`);
     };
 
-    // Rút gọn Mục tiêu và thêm Tooltip
+    // Shorten Targets and add Tooltip for the full list
     const targetsDisplay = workflow.targets.length > 1
-        ? `${workflow.targets[0]} và ${workflow.targets.length - 1} mục tiêu khác`
+        ? `${workflow.targets[0]} and ${workflow.targets.length - 1} other targets`
         : workflow.targets[0];
 
     const fullTargetsList = workflow.targets.join('\n');
 
-    // Thay thế Tiến trình bằng Progress Bar
+    // Calculate progress for the Progress Bar
     const completed = workflow.completed_steps || 0;
     const total = workflow.total_steps || 0;
     const progressPercentage = total > 0 ? (completed / total) * 100 : 0;
@@ -36,47 +37,57 @@ function WorkflowRow({ workflow, onCancel }) {
 
     const formattedDate = new Date(workflow.created_at).toLocaleString('vi-VN');
 
+    // Check if the workflow is AI-generated
+    const isAiGenerated = workflow.description && workflow.description.includes('AI auto-generated');
+
     return (
         <Table.Tr onClick={handleNavigate} style={{ cursor: 'pointer' }}>
-            {/* THÊM CỘT MỚI ĐỂ HIỂN THỊ ID SỐ */}
+            {/* Numeric ID Column with AI Indicator */}
             <Table.Td>
-                <Text ff="monospace" c="dimmed" size="sm">
-                    #{workflow.id}
-                </Text>
+                <Group gap="xs" wrap="nowrap">
+                    {isAiGenerated && (
+                        <Tooltip label={workflow.description} withArrow>
+                            <IconSparkles size={16} color="var(--mantine-color-blue-6)" />
+                        </Tooltip>
+                    )}
+                    <Text ff="monospace" c="dimmed" size="sm">
+                        #{workflow.id}
+                    </Text>
+                </Group>
             </Table.Td>
 
-            {/* Cột Workflow ID (UUID rút gọn) */}
+            {/* Workflow ID (shortened UUID) Column */}
             <Table.Td>
                 <Text ff="monospace" c="dimmed" size="xs">{workflow.workflow_id.split('-').pop()}</Text>
             </Table.Td>
 
-            {/* Cột Mục tiêu */}
+            {/* Targets Column */}
             <Table.Td>
                 <Tooltip label={<Text style={{ whiteSpace: 'pre-line' }}>{fullTargetsList}</Text>} withArrow multiline>
                     <Text fw={500} truncate="end">{targetsDisplay}</Text>
                 </Tooltip>
             </Table.Td>
 
-            {/* Cột Tiến trình */}
+            {/* Progress Column */}
             <Table.Td>
                 <Tooltip label={progressText} withArrow>
                     <Progress value={progressPercentage} size="lg" radius="sm" />
                 </Tooltip>
             </Table.Td>
 
-            {/* Cột Trạng thái */}
+            {/* Status Column */}
             <Table.Td>
                 <Badge color={getStatusColor(workflow.status)} variant="light">
                     {workflow.status}
                 </Badge>
             </Table.Td>
 
-            {/* Cột Thời gian tạo */}
+            {/* Creation Time Column */}
             <Table.Td>
                 <Text size="sm" c="dimmed">{formattedDate}</Text>
             </Table.Td>
 
-            {/* Cột Hành động */}
+            {/* Actions Column */}
             <Table.Td>
                 <Group gap="xs" justify="flex-end">
                     <Button
@@ -84,7 +95,7 @@ function WorkflowRow({ workflow, onCancel }) {
                         color="red"
                         size="compact-sm"
                         onClick={(e) => {
-                            e.stopPropagation(); // Ngăn sự kiện click của cả hàng
+                            e.stopPropagation(); // Prevent row's click event
                             onCancel(workflow.workflow_id);
                         }}
                     >

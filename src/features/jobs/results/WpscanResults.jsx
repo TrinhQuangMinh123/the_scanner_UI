@@ -3,12 +3,15 @@ import React from 'react';
 import { Table, Text, Anchor, Badge } from '@mantine/core';
 
 function WpscanResults({ data }) {
-    if (!data || data.length === 0) {
+    // THAY ĐỔI: Trích xuất mảng kết quả thực tế từ dữ liệu lồng nhau
+    const findings = data[0]?.scan_metadata?.wpscan_results || [];
+
+    if (!findings || findings.length === 0) {
         return (
             <Table>
                 <Table.Tbody>
                     <Table.Tr>
-                        <Table.Td colSpan={4} align="center">
+                        <Table.Td colSpan={4} ta="center">
                             <Text c="dimmed">Không tìm thấy kết quả nào.</Text>
                         </Table.Td>
                     </Table.Tr>
@@ -16,7 +19,7 @@ function WpscanResults({ data }) {
             </Table>
         );
     }
-    const rows = data.map((finding, index) => {
+    const rows = findings.map((finding, index) => {
         const cveId = finding.references?.cve?.[0];
 
         return (

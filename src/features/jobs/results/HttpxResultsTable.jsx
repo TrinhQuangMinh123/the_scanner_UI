@@ -1,8 +1,7 @@
 // src/features/jobs/results/HttpxResultsTable.jsx
 import React from 'react';
-import { Table, Badge, Text, Anchor, Group } from '@mantine/core';
+import { Table, Badge, Anchor, Group } from '@mantine/core';
 
-// Hàm helper để chọn màu cho status code
 const getStatusCodeColor = (statusCode) => {
     if (statusCode >= 500) return 'red';
     if (statusCode >= 400) return 'orange';
@@ -12,10 +11,16 @@ const getStatusCodeColor = (statusCode) => {
 };
 
 function HttpxResultsTable({ data }) {
-    const rows = data.map((item, index) => (
+    // THAY ĐỔI: Gom tất cả các kết quả từ các target khác nhau vào một mảng duy nhất
+    const allHttpxFindings = data.flatMap(
+        (targetResult) => targetResult.scan_metadata?.httpx_results || []
+    );
+
+    // Render bảng từ mảng đã được làm phẳng
+    const rows = allHttpxFindings.map((item, index) => (
         <Table.Tr key={item.url || index}>
             <Table.Td>
-                <Anchor href={item.url} target="_blank" size="sm">{item.url}</Anchor>
+                <Anchor href={item.url} target="_blank" size="sm" lineClamp={1}>{item.url}</Anchor>
             </Table.Td>
             <Table.Td>
                 <Badge color={getStatusCodeColor(item.status_code)}>
@@ -24,7 +29,6 @@ function HttpxResultsTable({ data }) {
             </Table.Td>
             <Table.Td>{item.title}</Table.Td>
             <Table.Td>
-                {/* Hiển thị danh sách công nghệ dưới dạng các Badge */}
                 {item.tech && item.tech.length > 0 && (
                     <Group gap="xs">
                         {item.tech.map(t => <Badge key={t} variant="light">{t}</Badge>)}
